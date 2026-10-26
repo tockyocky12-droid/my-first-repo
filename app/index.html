@@ -74,7 +74,7 @@ textarea{width:100%;min-height:90px;font:inherit;padding:8px;border:1px solid va
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
 </button>
 <div id="toast" hidden></div>
-<div id="empty" class="empty" hidden>地番データがまだ入っていません。<br>法務局の登記所備付地図データ（GeoJSON）を <code>data/parcels.geojson</code> に置くと、ここに地番と境界線が表示されます。</div>
+<div id="empty" class="empty" hidden>地番データを読み込めませんでした。<br>通信状態を確認して、ページを開き直してください。</div>
 <section id="sheet" hidden aria-live="polite">
   <div class="top">
     <div style="flex:1;min-width:0">
@@ -141,7 +141,8 @@ function openSheet(layer){
   document.getElementById('s-oaza').textContent=oazaOf(p)||'';
   const a=areaM2(layer);
   const rows=[['図上面積',a>=10000?`${(a/10000).toFixed(2)} ha（${Math.round(a).toLocaleString()} m²）`:`${Math.round(a).toLocaleString()} m²`],
-    ['地図の種類',pick(p,['地図名','座標系','精度区分'])||'—']];
+    ['精度区分',pick(p,['精度区分'])||'—'],
+    ['座標の求め方',pick(p,['座標値種別'])||'—']];
   const dl=document.getElementById('s-info');dl.replaceChildren();
   rows.forEach(([k,v])=>{const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=v;dl.append(dt,dd)});
   document.getElementById('memo').value=store.get(currentKey);
@@ -152,20 +153,42 @@ document.getElementById('s-close').onclick=()=>{document.getElementById('sheet')
 let mt;document.getElementById('memo').addEventListener('input',e=>{clearTimeout(mt);const k=currentKey,v=e.target.value;
   mt=setTimeout(()=>{document.getElementById('saved').textContent=store.set(k,v)?'保存しました':'保存できませんでした（ブラウザの設定を確認してください）'},500)});
 
-const index=[];
-fetch('data/parcels.geojson').then(r=>{if(!r.ok)throw 0;return r.json()}).then(gj=>{
-  parcels=L.geoJSON(gj,{style:styleFor,onEachFeature:(f,l)=>{l.on('click',()=>openSheet(l));index.push(l)}}).addTo(map);
-  map.fitBounds(parcels.getBounds());
-  map.attributionControl.addAttribution('地番：法務省 登記所備付地図データ（G空間情報センター）');
+// ---- 地番データ：大字ごとに、画面に入ったときだけ読み込む ----
+const index=[];let districts=[];const loading={};
+const MINZ=14;
+parcels=L.geoJSON(null,{style:styleFor,onEachFeature:(f,l)=>{l.on('click',()=>openSheet(l));index.push(l)}}).addTo(map);
+function loadDistrict(d){
+  if(loading[d.file])return loading[d.file];
+  toast(`${d.oaza} の地番を読み込んでいます…`);
+  return loading[d.file]=fetch('data/'+d.file).then(r=>{if(!r.ok)throw 0;return r.json()})
+    .then(gj=>{parcels.addData(gj);toast(`${d.oaza}：${d.count.toLocaleString()} 筆を表示`)})
+    .catch(()=>{delete loading[d.file];toast(`${d.oaza} の読み込みに失敗しました。通信状態を確認してください`)});
+}
+function bboxBounds(b){return L.latLngBounds([b[1],b[0]],[b[3],b[2]])}
+function refresh(){
+  const z=map.getZoom(),vb=map.getBounds();
+  if(z<MINZ){if(map.hasLayer(parcels))map.removeLayer(parcels);return}
+  if(!map.hasLayer(parcels))parcels.addTo(map);
+  districts.forEach(d=>{if(vb.intersects(bboxBounds(d.bbox)))loadDistrict(d)});
+}
+fetch('data/index.json').then(r=>{if(!r.ok)throw 0;return r.json()}).then(list=>{
+  districts=list;
+  const all=list.reduce((b,d)=>b.extend(bboxBounds(d.bbox)),L.latLngBounds([]));
+  map.fitBounds(all);
+  map.attributionControl.addAttribution('地番：法務省 登記所備付地図データ（G空間情報センター、AIGID変換）');
+  map.on('moveend',refresh);refresh();
+  toast('地図を拡大すると地番が表示されます');
 }).catch(()=>{document.getElementById('empty').hidden=false});
 
-document.getElementById('search').addEventListener('submit',e=>{
+document.getElementById('search').addEventListener('submit',async e=>{
   e.preventDefault();const q=document.getElementById('q').value.trim().replace(/番(地)?$/,'');
-  if(!q)return; if(!parcels){toast('地番データが入っていません');return}
+  if(!q)return; if(!districts.length){toast('地番データが入っていません');return}
+  toast('検索しています…');
+  await Promise.all(districts.map(loadDistrict));
   const hits=index.filter(l=>chibanOf(l.feature.properties)===q);
   if(!hits.length){toast(`「${q}」は見つかりませんでした`);return}
   map.fitBounds(hits[0].getBounds(),{maxZoom:18});openSheet(hits[0]);
-  if(hits.length>1)toast(`同じ地番が ${hits.length} 件あります（大字が違います）`);
+  if(hits.length>1)toast(`「${q}」は ${hits.length} 件あります（大字が違います）。1件目を表示中`);
 });
 
 // ---- 現在地 ----
