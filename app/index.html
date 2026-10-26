@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>錦江町 森林地番マップ</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700&family=BIZ+UDGothic:wght@400;700&display=swap">
+<style>
+/* 地図が主役の一画面アプリ。上に細いバー、下からせり上がる地番カード */
+:root{
+  --bg:#f3f5f1; --panel:#ffffff; --fg:#1d2a22; --muted:#5f6d63;
+  --accent:#2f6b45; --accent-fg:#ffffff; --line:#d5ddd5; --parcel:#c2410c; --sel:#facc15;
+  --f-display:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",sans-serif;
+  --f-data:"BIZ UDGothic","Hiragino Sans","Yu Gothic",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#121814; --panel:#1b231d; --fg:#e6ece6; --muted:#9aa89e;
+  --accent:#6fbf8a; --accent-fg:#0d1a12; --line:#2e3a31; color-scheme:dark;
+}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-display);font-size:15px;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:10px;padding-block:calc(env(safe-area-inset-top,0px) + 8px) 8px;
+  padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px));
+  background:var(--panel);border-bottom:1px solid var(--line);z-index:1000}
+header h1{font-size:16px;margin:0;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:transparent;color:var(--fg);font:inherit;font-size:13px;padding:6px 10px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg)}
+#search{display:flex;gap:6px;padding:8px max(14px,env(safe-area-inset-right,0px)) 8px max(14px,env(safe-area-inset-left,0px));background:var(--panel);border-bottom:1px solid var(--line);z-index:1000}
+#search input{flex:1;min-width:0;font:inherit;font-family:var(--f-data);padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+#search button{font:inherit;padding:8px 12px;border-radius:8px;border:0;background:var(--accent);color:var(--accent-fg);cursor:pointer}
+#map{flex:1;min-height:0}
+#locate{position:absolute;right:calc(14px + env(safe-area-inset-right,0px));bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:900;
+  width:52px;height:52px;border-radius:50%;border:0;background:var(--panel);color:var(--accent);box-shadow:0 2px 10px rgba(0,0,0,.25);cursor:pointer;display:grid;place-items:center}
+#locate.on{background:var(--accent);color:var(--accent-fg)}
+#locate svg{width:26px;height:26px}
+#toast{position:absolute;left:50%;transform:translateX(-50%);top:120px;z-index:1100;background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;max-width:90%}
+#sheet{position:absolute;left:0;right:0;bottom:0;z-index:1000;background:var(--panel);border-top:1px solid var(--line);
+  border-radius:14px 14px 0 0;box-shadow:0 -4px 16px rgba(0,0,0,.18);
+  padding-block:14px calc(16px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  max-height:60%;overflow:auto}
+#sheet .top{display:flex;align-items:flex-start;gap:10px}
+#sheet h2{font-size:22px;margin:0;flex:1;font-family:var(--f-data)}
+#sheet .oaza{font-size:13px;color:var(--muted);margin-top:2px}
+#sheet .close{border:0;background:transparent;color:var(--muted);font-size:24px;line-height:1;cursor:pointer;padding:0 4px}
+dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:12px 0;font-family:var(--f-data);font-size:14px}
+dt{color:var(--muted)} dd{margin:0;font-variant-numeric:tabular-nums}
+label{font-size:13px;color:var(--muted);display:block;margin-bottom:4px}
+textarea{width:100%;min-height:90px;font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);resize:vertical}
+.saved{font-size:12px;color:var(--accent);margin-top:4px;min-height:1em}
+.leaflet-container{font-family:var(--f-display)}
+.empty{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:800;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;max-width:min(320px,86%);font-size:14px;line-height:1.6}
+:focus-visible{outline:3px solid var(--sel);outline-offset:2px}
+</style>
+</head>
+<body>
+<header>
+  <h1>錦江町 森林地番マップ</h1>
+  <div class="seg" role="group" aria-label="背景地図">
+    <button id="bm-std" aria-pressed="true">地図</button>
+    <button id="bm-photo" aria-pressed="false">写真</button>
+  </div>
+</header>
+<form id="search" autocomplete="off">
+  <input id="q" type="search" placeholder="地番で探す（例：1234-5）" aria-label="地番で探す">
+  <button type="submit">検索</button>
+</form>
+<div id="map"></div>
+<button id="locate" aria-label="現在地を表示">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
+</button>
+<div id="toast" hidden></div>
+<div id="empty" class="empty" hidden>地番データがまだ入っていません。<br>法務局の登記所備付地図データ（GeoJSON）を <code>data/parcels.geojson</code> に置くと、ここに地番と境界線が表示されます。</div>
+<section id="sheet" hidden aria-live="polite">
+  <div class="top">
+    <div style="flex:1;min-width:0">
+      <h2 id="s-chiban"></h2>
+      <div class="oaza" id="s-oaza"></div>
+    </div>
+    <button class="close" id="s-close" aria-label="閉じる">×</button>
+  </div>
+  <dl id="s-info"></dl>
+  <label for="memo">メモ（この端末に保存されます）</label>
+  <textarea id="memo" placeholder="例：2026/10 現地確認。境界杭あり。スギ 約40年生。"></textarea>
+  <div class="saved" id="saved"></div>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const KINKO=[31.215,130.79]; // 錦江町役場付近
+const map=L.map('map',{zoomControl:true,preferCanvas:true}).setView(KINKO,13);
+const gsiAttr='<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>';
+const std=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',{maxZoom:18,attribution:gsiAttr});
+const photo=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',{maxZoom:18,attribution:gsiAttr});
+std.addTo(map);
+function setBase(p){
+  (p?std:photo).remove();(p?photo:std).addTo(map);
+  document.getElementById('bm-std').setAttribute('aria-pressed',!p);
+  document.getElementById('bm-photo').setAttribute('aria-pressed',p);
+  if(parcels) parcels.setStyle(styleFor);
+}
+document.getElementById('bm-std').onclick=()=>setBase(false);
+document.getElementById('bm-photo').onclick=()=>setBase(true);
+
+const toastEl=document.getElementById('toast');let tt;
+function toast(t){toastEl.textContent=t;toastEl.hidden=false;clearTimeout(tt);tt=setTimeout(()=>toastEl.hidden=true,3000)}
+
+// ---- メモ（端末内保存） ----
+const store={get(k){try{return localStorage.getItem('memo:'+k)||''}catch(e){return''}},
+  set(k,v){try{v?localStorage.setItem('memo:'+k,v):localStorage.removeItem('memo:'+k);return true}catch(e){return false}}};
+
+// ---- 地番の属性（データの列名の違いを吸収） ----
+const pick=(p,keys)=>{for(const k of keys){if(p[k]!=null&&p[k]!=='')return String(p[k])}return''};
+const chibanOf=p=>pick(p,['地番','chiban','CHIBAN']);
+const oazaOf=p=>[pick(p,['大字名','oaza','OAZA']),pick(p,['丁目名','chome']),pick(p,['小字名','koaza'])].filter(Boolean).join(' ');
+const keyOf=p=>[pick(p,['筆ID','fude_id','id']),oazaOf(p),chibanOf(p)].join('|');
+
+function areaM2(layer){ // 球面上の多角形面積（概算）
+  const R=6378137,rad=Math.PI/180;let total=0;
+  const rings=L.LineUtil.isFlat(layer.getLatLngs())?[layer.getLatLngs()]:layer.getLatLngs().flat(1);
+  rings.forEach((ring,i)=>{let a=0;for(let j=0;j<ring.length;j++){const p1=ring[j],p2=ring[(j+1)%ring.length];
+    a+=(p2.lng-p1.lng)*rad*(2+Math.sin(p1.lat*rad)+Math.sin(p2.lat*rad))}
+    a=Math.abs(a*R*R/2);total+= i===0?a:-a});
+  return Math.abs(total);
+}
+
+let parcels=null,selected=null,currentKey=null;
+const isPhoto=()=>map.hasLayer(photo);
+function styleFor(f){
+  const sel=selected&&selected.feature===f;
+  return {color:sel?'#facc15':(isPhoto()?'#fde68a':'#c2410c'),weight:sel?3:1,fillOpacity:sel?.25:.04,fillColor:sel?'#facc15':'#c2410c'};
+}
+function openSheet(layer){
+  const prev=selected;selected=layer;if(prev)parcels.resetStyle(prev);layer.setStyle(styleFor(layer.feature));layer.bringToFront();
+  const p=layer.feature.properties;currentKey=keyOf(p);
+  document.getElementById('s-chiban').textContent=(chibanOf(p)||'地番不明')+' 番';
+  document.getElementById('s-oaza').textContent=oazaOf(p)||'';
+  const a=areaM2(layer);
+  const rows=[['図上面積',a>=10000?`${(a/10000).toFixed(2)} ha（${Math.round(a).toLocaleString()} m²）`:`${Math.round(a).toLocaleString()} m²`],
+    ['地図の種類',pick(p,['地図名','座標系','精度区分'])||'—']];
+  const dl=document.getElementById('s-info');dl.replaceChildren();
+  rows.forEach(([k,v])=>{const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=v;dl.append(dt,dd)});
+  document.getElementById('memo').value=store.get(currentKey);
+  document.getElementById('saved').textContent='';
+  document.getElementById('sheet').hidden=false;
+}
+document.getElementById('s-close').onclick=()=>{document.getElementById('sheet').hidden=true;if(selected){const s=selected;selected=null;parcels.resetStyle(s)}};
+let mt;document.getElementById('memo').addEventListener('input',e=>{clearTimeout(mt);const k=currentKey,v=e.target.value;
+  mt=setTimeout(()=>{document.getElementById('saved').textContent=store.set(k,v)?'保存しました':'保存できませんでした（ブラウザの設定を確認してください）'},500)});
+
+const index=[];
+fetch('data/parcels.geojson').then(r=>{if(!r.ok)throw 0;return r.json()}).then(gj=>{
+  parcels=L.geoJSON(gj,{style:styleFor,onEachFeature:(f,l)=>{l.on('click',()=>openSheet(l));index.push(l)}}).addTo(map);
+  map.fitBounds(parcels.getBounds());
+  map.attributionControl.addAttribution('地番：法務省 登記所備付地図データ（G空間情報センター）');
+}).catch(()=>{document.getElementById('empty').hidden=false});
+
+document.getElementById('search').addEventListener('submit',e=>{
+  e.preventDefault();const q=document.getElementById('q').value.trim().replace(/番(地)?$/,'');
+  if(!q)return; if(!parcels){toast('地番データが入っていません');return}
+  const hits=index.filter(l=>chibanOf(l.feature.properties)===q);
+  if(!hits.length){toast(`「${q}」は見つかりませんでした`);return}
+  map.fitBounds(hits[0].getBounds(),{maxZoom:18});openSheet(hits[0]);
+  if(hits.length>1)toast(`同じ地番が ${hits.length} 件あります（大字が違います）`);
+});
+
+// ---- 現在地 ----
+let watchId=null,me=null,acc=null,first=true;const btn=document.getElementById('locate');
+btn.onclick=()=>{
+  if(watchId!==null){navigator.geolocation.clearWatch(watchId);watchId=null;btn.classList.remove('on');me&&me.remove();acc&&acc.remove();me=acc=null;return}
+  if(!navigator.geolocation){toast('この端末では現在地が使えません');return}
+  btn.classList.add('on');first=true;toast('現在地を取得しています…');
+  watchId=navigator.geolocation.watchPosition(pos=>{
+    const ll=[pos.coords.latitude,pos.coords.longitude],r=pos.coords.accuracy;
+    if(!me){acc=L.circle(ll,{radius:r,color:'#2563eb',weight:1,fillOpacity:.12}).addTo(map);
+      me=L.circleMarker(ll,{radius:8,color:'#fff',weight:3,fillColor:'#2563eb',fillOpacity:1}).addTo(map)}
+    else{me.setLatLng(ll);acc.setLatLng(ll).setRadius(r)}
+    if(first){map.setView(ll,Math.max(map.getZoom(),16));first=false;toast(`現在地（誤差 約${Math.round(r)}m）`)}
+  },err=>{toast(err.code===1?'位置情報の利用が許可されていません。ブラウザの設定で許可してください':'現在地を取得できませんでした');
+    btn.classList.remove('on');watchId=null},{enableHighAccuracy:true,maximumAge:5000,timeout:20000});
+};
+</script>
+</body>
+</html>
