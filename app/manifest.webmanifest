@@ -2,6 +2,7 @@
   "name": "錦江町 森林管理システム",
   "short_name": "森林管理",
   "description": "錦江町の森林を地図と航空写真で確認・管理するアプリ",
+  "id": "kinko-forest-app",
   "lang": "ja",
   "start_url": "./",
   "scope": "./",
