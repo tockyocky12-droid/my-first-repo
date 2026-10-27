@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>錦江町地番メモ</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2f6b45">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="地番メモ">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700&family=BIZ+UDGothic:wght@400;700&display=swap">
@@ -127,6 +133,7 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
 .leaflet-tooltip.mlabel.hid,.lz-low .leaflet-tooltip.mlabel,.lb-off .leaflet-tooltip.mlabel{visibility:hidden}
 .lbtn{font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer;white-space:nowrap}
 .lbtn[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+#install{font:inherit;font-size:13px;padding:8px 12px;border-radius:8px;border:1px solid var(--accent);background:transparent;color:var(--accent);cursor:pointer;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -141,6 +148,7 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
 <form id="search" autocomplete="off">
   <input id="q" type="search" placeholder="地番で探す（例：1234-5）" aria-label="地番で探す">
   <button type="submit">検索</button>
+  <button id="install" type="button" hidden>アプリにする</button>
 </form>
 <div id="maparea"><div id="map"></div><div id="cands" hidden role="listbox" aria-label="地番の候補"></div></div>
 <button id="locate" aria-label="現在地を表示">
@@ -188,8 +196,8 @@ const DATA='../app/data/'; // 森林管理システムと同じ地番データ�
 const KINKO=[31.215,130.79]; // 錦江町役場付近
 const map=L.map('map',{zoomControl:true,preferCanvas:true}).setView(KINKO,13);
 const gsiAttr='<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>';
-const std=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',{maxZoom:18,attribution:gsiAttr});
-const photo=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',{maxZoom:18,attribution:gsiAttr});
+const std=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',{maxZoom:18,attribution:gsiAttr,crossOrigin:'anonymous'});
+const photo=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',{maxZoom:18,attribution:gsiAttr,crossOrigin:'anonymous'});
 std.addTo(map);
 function setBase(p){
   (p?std:photo).remove();(p?photo:std).addTo(map);
@@ -398,6 +406,14 @@ btn.onclick=()=>{
   },err=>{toast(err.code===1?'位置情報の利用が許可されていません。ブラウザの設定で許可してください':'現在地を取得できませんでした');
     btn.classList.remove('on');watchId=null},{enableHighAccuracy:true,maximumAge:5000,timeout:20000});
 };
+
+// ---- アプリとしてインストール ----
+if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))}
+let installEvt=null;const ib=document.getElementById('install');
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvt=e;ib.hidden=false});
+ib.onclick=async()=>{if(!installEvt)return;installEvt.prompt();const r=await installEvt.userChoice;installEvt=null;ib.hidden=true;
+  if(r.outcome==='accepted')toast('ホーム画面に追加しました')};
+window.addEventListener('appinstalled',()=>{ib.hidden=true});
 </script>
 </body>
 </html>
