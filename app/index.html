@@ -112,6 +112,12 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
 .bnote{font-size:11px;color:var(--muted)}
 .leaflet-tooltip.blabel{background:#fff;color:#991b1b;border:2px solid #dc2626;border-radius:6px;font:700 12px/1.3 "BIZ UDGothic","Hiragino Sans",sans-serif;padding:2px 6px;box-shadow:0 1px 4px rgba(0,0,0,.3);white-space:nowrap}
 .leaflet-tooltip.blabel::before{display:none}
+.leaflet-tooltip.blabel{font-size:11px;padding:1px 5px;border-width:1.5px;max-width:9em;overflow:hidden;text-overflow:ellipsis}
+.leaflet-tooltip.blabel.done{color:#57534e;border-color:#a8a29e;background:#f5f5f4}
+.leaflet-tooltip.blabel.hid,.lz-low .leaflet-tooltip.blabel,.lb-off .leaflet-tooltip.blabel{visibility:hidden}
+.lbtn{margin-left:auto;font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer;white-space:nowrap}
+.lbtn[aria-pressed="true"]{border-color:#dc2626;color:#dc2626}
+#tint{flex-wrap:wrap}
 </style>
 </head>
 <body>
@@ -133,6 +139,7 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
     <button id="t-species" aria-pressed="false">樹種</button>
     <button id="t-age" aria-pressed="false">林齢</button>
   </div>
+  <button id="lbl" class="lbtn" type="button" aria-pressed="true">届出の文字</button>
 </div>
 <div id="maparea"><div id="map"></div><div id="cands" hidden role="listbox" aria-label="地番の候補"></div></div>
 <div id="legend" hidden></div>
@@ -222,11 +229,35 @@ const store={get(k,ns='memo'){try{return localStorage.getItem(ns+':'+k)||''}catc
 const BF=['label','date','method','from','to'];
 function bassaiRaw(p){const s=store.get(keyOf(p),'bassai');if(!s)return null;try{return JSON.parse(s)}catch(e){return null}}
 function bassaiOf(p){const o=bassaiRaw(p);return o&&o.label?o:null}
+const today=()=>new Date().toISOString().slice(0,10);
+const isDone=b=>!!(b.to&&b.to<today());
 function applyLabel(l){
   const b=bassaiOf(l.feature.properties);
   if(l.getTooltip())l.unbindTooltip();
-  if(b)l.bindTooltip(b.label,{permanent:true,direction:'center',className:'blabel',interactive:false});
+  if(b)l.bindTooltip(b.label,{permanent:true,direction:'center',className:'blabel'+(isDone(b)?' done':''),interactive:false});
+  scheduleDeclutter();
 }
+// ラベルの重なりを間引く：伐採期間中→新しい受理日の順に優先して表示し、重なるものは隠す
+const LABEL_Z=16;let dt2;
+function scheduleDeclutter(){clearTimeout(dt2);dt2=setTimeout(declutter,120)}
+function declutter(){
+  const c=map.getContainer();c.classList.toggle('lz-low',map.getZoom()<LABEL_Z);
+  if(map.getZoom()<LABEL_Z||c.classList.contains('lb-off'))return;
+  const items=[];
+  parcels&&parcels.eachLayer(l=>{const t=l.getTooltip&&l.getTooltip();if(!t||!t.getElement())return;
+    const b=bassaiOf(l.feature.properties)||{};items.push({el:t.getElement(),done:isDone(b),d:b.date||''})});
+  items.sort((a,b)=>(a.done-b.done)||(b.d.localeCompare(a.d)));
+  const placed=[];
+  items.forEach(it=>{it.el.classList.remove('hid');const r=it.el.getBoundingClientRect();
+    const hit=placed.some(p=>!(r.right+2<p.left||r.left-2>p.right||r.bottom+2<p.top||r.top-2>p.bottom));
+    if(hit)it.el.classList.add('hid');else placed.push(r)});
+}
+map.on('zoomend moveend',scheduleDeclutter);
+let lblOn=true;try{lblOn=localStorage.getItem('ui:lbl')!=='off'}catch(e){}
+function setLbl(on){lblOn=on;map.getContainer().classList.toggle('lb-off',!on);document.getElementById('lbl').setAttribute('aria-pressed',on);
+  try{localStorage.setItem('ui:lbl',on?'on':'off')}catch(e){} scheduleDeclutter()}
+document.getElementById('lbl').onclick=()=>{setLbl(!lblOn);toast(lblOn?(map.getZoom()<LABEL_Z?'さらに拡大すると届出の文字が出ます':'届出の文字を表示します'):'届出の文字を隠しました（赤い枠は残ります）')};
+setLbl(lblOn);
 let bt;
 BF.forEach(k=>document.getElementById('b-'+k).addEventListener(k==='label'?'input':'change',()=>{
   clearTimeout(bt);const layer=selected,key=currentKey;if(!layer)return;
