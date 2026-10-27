@@ -66,12 +66,6 @@ textarea{width:100%;min-height:90px;font:inherit;padding:8px;border:1px solid va
 .chip.ho{background:#fef3c7;color:#78350f;border-color:#f59e0b}
 .fr dl{margin:8px 0 4px}
 .nof{font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;margin-top:10px;line-height:1.6}
-.fbtn{margin-left:auto;font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px dashed var(--muted);background:transparent;color:var(--fg);cursor:pointer;white-space:nowrap}
-.fbtn.on{border-style:solid;border-color:var(--accent);color:var(--accent)}
-.frow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px}
-.frow .fbtn{margin-left:0;background:var(--accent);color:var(--accent-fg);border:0;padding:8px 12px;font-size:13px}
-.frow a{color:var(--accent);font-size:13px}
-#tint{flex-wrap:wrap}
 .mapinfo{margin-top:12px;font-size:13px;color:var(--muted)}
 .mapinfo summary{cursor:pointer;padding:4px 0}
 .mapinfo dl{font-size:13px;margin:6px 0}
@@ -116,8 +110,6 @@ textarea{width:100%;min-height:90px;font:inherit;padding:8px;border:1px solid va
     <button id="t-species" aria-pressed="false">樹種</button>
     <button id="t-age" aria-pressed="false">林齢</button>
   </div>
-  <button id="fload" class="fbtn" type="button">森林簿：未読込</button>
-  <input id="ffile" type="file" accept=".csv,text/csv" multiple hidden>
 </div>
 <div id="map"></div>
 <div id="legend" hidden></div>
@@ -242,69 +234,7 @@ let parcels=null,selected=null,currentKey=null;
 const isPhoto=()=>map.hasLayer(photo);
 
 // ---- 森林簿（鹿児島県 森林簿オープンデータ） ----
-let forest={}; // forest[大字][地番] = [小班...]（端末に読み込んだ森林簿CSVから作る）
-let forestLoaded=false;
-// --- CSV（Shift_JIS）を端末内で読み、IndexedDB に保存する。データは外部に送らない ---
-function parseCSV(t){
-  const rows=[];let row=[],f='',q=false;
-  for(let i=0;i<t.length;i++){const c=t[i];
-    if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
-    else if(c==='"')q=true;
-    else if(c===','){row.push(f);f=''}
-    else if(c==='\n'||c==='\r'){if(c==='\r'&&t[i+1]==='\n')i++;row.push(f);f='';if(row.length>1||row[0]!=='')rows.push(row);row=[]}
-    else f+=c}
-  if(f!==''||row.length){row.push(f);rows.push(row)}
-  return rows;
-}
-const OAZA_ALIAS={'麓':'田代麓','川原':'田代川原'};
-function buildForest(texts){
-  const out={};let n=0;
-  const num=s=>{s=String(s||'').trim();return /^\d+(\.\d+)?$/.test(s)?Number(s):null};
-  for(const t of texts){
-    const rows=parseCSV(t);if(!rows.length)continue;
-    const H=rows[0].map(h=>h.trim()),ix={};H.forEach((h,i)=>ix[h]=i);
-    if(ix['地番']==null||ix['大字CD']==null)throw new Error('森林簿のCSVではないようです（「地番」「大字CD」の列がありません）');
-    const g=(r,k)=>ix[k]==null?'':String(r[ix[k]]||'').trim();
-    for(const r of rows.slice(1)){
-      const o=OAZA_ALIAS[g(r,'大字CD')]||g(r,'大字CD');const cb=nz(g(r,'地番'));if(!o||!cb)continue;
-      const sp=[];['1','2','3'].forEach(i=>{if(g(r,'樹種CD'+i)||g(r,'林種CD'+i))sp.push([g(r,'林種CD'+i),g(r,'樹種CD'+i),num(g(r,'林齢'+i)),num(g(r,'齢級'+i)),num(g(r,'混交歩合'+i))])});
-      const strip=s=>s.replace(/^0+(?=\d)/,'');
-      const rec={k:[strip(g(r,'林班')),nz(g(r,'準林班')),strip(g(r,'小班'))].filter(Boolean).join('-')+(g(r,'枝番')?'-'+g(r,'枝番'):''),
-        az:nz(g(r,'字名_カナ')),own:g(r,'所有形態CD'),kind:g(r,'森林の種類CD'),ho:g(r,'保安林CD'),a:num(g(r,'更正面積')),v:num(g(r,'総蓄積_M3')),
-        m:g(r,'施業方法CD').replace(/　/g,' '),chi:g(r,'地位CD'),sp,hy:g(r,'施業履歴年度'),hw:g(r,'施業履歴作業CD'),
-        fn:['木材等生産CD','水源かん養CD','山地災害防止CD','生活環境保全CD','保健文化CD'].map(k=>g(r,k))};
-      Object.keys(rec).forEach(k=>{const v=rec[k];if(v===''||v==null||(Array.isArray(v)&&(!v.length||v.every(x=>x===''))))delete rec[k]});
-      ((out[o]||(out[o]={}))[cb]||(out[o][cb]=[])).push(rec);n++;
-    }
-  }
-  return {data:out,rows:n};
-}
-const idb={open(){return new Promise((ok,ng)=>{try{const r=indexedDB.open('kinko-forest',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>ok(r.result);r.onerror=()=>ng(r.error)}catch(e){ng(e)}})},
-  async get(k){const d=await this.open();return new Promise((ok,ng)=>{const q=d.transaction('kv').objectStore('kv').get(k);q.onsuccess=()=>ok(q.result);q.onerror=()=>ng(q.error)})},
-  async set(k,v){const d=await this.open();return new Promise((ok,ng)=>{const tx=d.transaction('kv','readwrite');tx.objectStore('kv').put(v,k);tx.oncomplete=()=>ok();tx.onerror=()=>ng(tx.error)})}};
-function setForest(obj){
-  forest=obj&&obj.data||{};forestLoaded=!!(obj&&obj.rows);
-  const b=document.getElementById('fload');
-  b.textContent=forestLoaded?`森林簿：${obj.rows.toLocaleString()}件`:'森林簿：未読込';b.classList.toggle('on',forestLoaded);
-  if(parcels)parcels.setStyle(styleFor);
-  if(selected)openSheet(selected);
-}
-document.getElementById('fload').onclick=()=>document.getElementById('ffile').click();
-document.getElementById('ffile').addEventListener('change',async e=>{
-  const files=[...e.target.files];e.target.value='';if(!files.length)return;
-  toast('森林簿を読み込んでいます…');
-  try{
-    const texts=await Promise.all(files.map(async f=>{const buf=await f.arrayBuffer();
-      let t=new TextDecoder('utf-8',{fatal:false}).decode(buf);if(!t.includes('地番'))t=new TextDecoder('shift_jis').decode(buf);return t}));
-    const obj=buildForest(texts);
-    if(!obj.rows)throw new Error('読み込める行がありませんでした');
-    obj.files=files.map(f=>f.name);obj.at=new Date().toISOString();
-    setForest(obj);
-    try{await idb.set('forest',obj);toast(`森林簿 ${obj.rows.toLocaleString()} 件を読み込みました（この端末に保存）`)}
-    catch(_){toast(`森林簿 ${obj.rows.toLocaleString()} 件を読み込みました。端末に保存できなかったので、次回また読み込んでください`)}
-  }catch(err){toast(err.message||'森林簿を読み込めませんでした')}
-});
-idb.get('forest').then(o=>{if(o)setForest(o)}).catch(()=>{});
+const forest={}; // forest[大字][地番] = [小班...]
 const nz=s=>String(s||'').normalize('NFKC').trim();
 const forestOf=p=>{const o=forest[pick(p,['大字名'])];return o?(o[nz(chibanOf(p))]||null):null};
 const mainRec=recs=>recs.reduce((a,b)=>((b.a||0)>(a.a||0)?b:a));
@@ -334,8 +264,7 @@ function setTint(t){
   items.forEach(([n,c])=>{const d=document.createElement('div');const i=document.createElement('i');i.style.background=c;d.append(i,document.createTextNode(n));lg.append(d)});
   lg.hidden=!items.length;
   parcels.setStyle(styleFor);
-  if(t!=='none'&&!forestLoaded)toast('色分けには森林簿の読み込みが必要です（右の「森林簿」ボタン）');
-  else if(t!=='none'&&map.getZoom()<MINZ)toast('地図を拡大すると色分けが表示されます');
+  if(t!=='none'&&map.getZoom()<MINZ)toast('地図を拡大すると色分けが表示されます');
 }
 ['none','species','age'].forEach(k=>document.getElementById('t-'+k).onclick=()=>setTint(k));
 
@@ -344,13 +273,6 @@ function renderForest(p){
   const recs=forestOf(p);
   const ttl=document.createElement('div');ttl.className='secttl';ttl.textContent='森林簿';box.append(ttl);
   const cr=document.createElement('div');cr.className='credit';cr.textContent='この成果品は、鹿児島県森林資源情報データ（ダウンロード）から作成したものである';
-  if(!forestLoaded){
-    const n=document.createElement('div');n.className='nof';
-    n.append('森林簿が読み込まれていません。鹿児島県のサイトから森林簿CSVをダウンロードして、読み込んでください。');
-    const r=document.createElement('div');r.className='frow';
-    const b=document.createElement('button');b.className='fbtn';b.type='button';b.textContent='CSVを読み込む';b.onclick=()=>document.getElementById('ffile').click();
-    const a=document.createElement('a');a.href='https://www.pref.kagoshima.jp/ad12/shinrin-open.html';a.target='_blank';a.rel='noopener';a.textContent='県のダウンロードページ';
-    r.append(b,a);n.append(r);box.append(n);return}
   if(!recs){const n=document.createElement('div');n.className='nof';n.textContent='この地番は森林簿に載っていません。森林以外の土地か、森林簿と地図で地番の表し方が違う可能性があります。';box.append(n);return}
   recs.forEach(r=>{
     const s=document.createElement('div');s.className='fr';
@@ -410,8 +332,9 @@ parcels=L.geoJSON(null,{style:styleFor,onEachFeature:(f,l)=>{l.on('click',()=>op
 function loadDistrict(d){
   if(loading[d.file])return loading[d.file];
   toast(`${d.oaza} の地番を読み込んでいます…`);
-  return loading[d.file]=fetch('data/'+d.file).then(r=>{if(!r.ok)throw 0;return r.json()})
-    .then(gj=>{parcels.addData(gj);toast(`${d.oaza}：${d.count.toLocaleString()} 筆を表示`)})
+  const fj=d.oaza==='その他'?Promise.resolve({}):fetch('forest/'+d.file.replace('.geojson','.json')).then(r=>r.ok?r.json():{}).catch(()=>({}));
+  return loading[d.file]=Promise.all([fetch('data/'+d.file).then(r=>{if(!r.ok)throw 0;return r.json()}),fj])
+    .then(([gj,fd])=>{forest[d.oaza]=fd;parcels.addData(gj);toast(`${d.oaza}：${d.count.toLocaleString()} 筆を表示`)})
     .catch(()=>{delete loading[d.file];toast(`${d.oaza} の読み込みに失敗しました。通信状態を確認してください`)});
 }
 function bboxBounds(b){return L.latLngBounds([b[1],b[0]],[b[3],b[2]])}
