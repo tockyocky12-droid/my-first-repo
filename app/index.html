@@ -81,6 +81,14 @@ textarea{width:100%;min-height:90px;font:inherit;padding:8px;border:1px solid va
 .anote{font-size:11px;color:var(--muted);margin-top:2px}
 .anote.warn{color:#d97706;font-weight:700}
 .secttl{font-size:12px;letter-spacing:.08em;color:var(--accent);font-weight:700;margin-top:12px}
+.bas{display:grid;gap:8px;margin-top:6px}
+.bas label{margin-bottom:2px}
+.bas input,.bas select{width:100%;min-width:0;font:inherit;font-family:var(--f-data);padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+.brow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.brow>div{min-width:0}
+.bnote{font-size:11px;color:var(--muted)}
+.leaflet-tooltip.blabel{background:#fff;color:#991b1b;border:2px solid #dc2626;border-radius:6px;font:700 12px/1.3 "BIZ UDGothic","Hiragino Sans",sans-serif;padding:2px 6px;box-shadow:0 1px 4px rgba(0,0,0,.3);white-space:nowrap}
+.leaflet-tooltip.blabel::before{display:none}
 </style>
 </head>
 <body>
@@ -130,6 +138,21 @@ textarea{width:100%;min-height:90px;font:inherit;padding:8px;border:1px solid va
       <div class="anote" id="s-ratio">地図の形から計算</div>
     </div>
   </div>
+  <div class="secttl">伐採届</div>
+  <div class="bas">
+    <label for="b-label">地図に表示する文字</label>
+    <input id="b-label" autocomplete="off" placeholder="例：R8-012 皆伐">
+    <div class="brow">
+      <div><label for="b-date">受理日</label><input id="b-date" type="date"></div>
+      <div><label for="b-method">伐採方法</label>
+        <select id="b-method"><option value="">—</option><option>皆伐</option><option>択伐</option><option>間伐</option></select></div>
+    </div>
+    <div class="brow">
+      <div><label for="b-from">伐採開始</label><input id="b-from" type="date"></div>
+      <div><label for="b-to">伐採終了</label><input id="b-to" type="date"></div>
+    </div>
+    <div class="bnote">文字を入れると、地図上のこの地番に表示されます。消すと表示も消えます。</div>
+  </div>
   <div id="s-forest"></div>
   <details class="mapinfo"><summary>地図データの詳細</summary><dl id="s-info"></dl></details>
   <label for="memo" style="margin-top:12px">メモ（この端末に保存されます）</label>
@@ -160,6 +183,26 @@ function toast(t){toastEl.textContent=t;toastEl.hidden=false;clearTimeout(tt);tt
 // ---- メモ（端末内保存） ----
 const store={get(k,ns='memo'){try{return localStorage.getItem(ns+':'+k)||''}catch(e){return''}},
   set(k,v,ns='memo'){try{v?localStorage.setItem(ns+':'+k,v):localStorage.removeItem(ns+':'+k);return true}catch(e){return false}}};
+// ---- 伐採届（端末内保存） ----
+const BF=['label','date','method','from','to'];
+function bassaiRaw(p){const s=store.get(keyOf(p),'bassai');if(!s)return null;try{return JSON.parse(s)}catch(e){return null}}
+function bassaiOf(p){const o=bassaiRaw(p);return o&&o.label?o:null}
+function applyLabel(l){
+  const b=bassaiOf(l.feature.properties);
+  if(l.getTooltip())l.unbindTooltip();
+  if(b)l.bindTooltip(b.label,{permanent:true,direction:'center',className:'blabel',interactive:false});
+}
+let bt;
+BF.forEach(k=>document.getElementById('b-'+k).addEventListener(k==='label'?'input':'change',()=>{
+  clearTimeout(bt);const layer=selected,key=currentKey;if(!layer)return;
+  bt=setTimeout(()=>{
+    const o={};BF.forEach(f=>{const v=document.getElementById('b-'+f).value.trim();if(v)o[f]=v});
+    const ok=store.set(key,Object.keys(o).length?JSON.stringify(o):'','bassai');
+    if(!ok){toast('伐採届を保存できませんでした（ブラウザの設定を確認してください）');return}
+    if(!o.label&&Object.keys(o).length)toast('地図に出すには「表示する文字」を入れてください');
+    applyLabel(layer);parcels.resetStyle(layer);if(selected===layer)layer.setStyle(styleFor(layer.feature));
+  },400);
+}));
 let curArea=0;
 const fmtArea=a=>a>=10000?`${(a/10000).toFixed(2)}<small> ha</small>`:`${Math.round(a).toLocaleString()}<small> m²</small>`;
 function updateRatio(){
@@ -210,6 +253,7 @@ function styleFor(f){
   const sel=selected&&selected.feature===f;
   const tc=tint!=='none'?tintColor(f):null;
   if(sel)return {color:'#facc15',weight:3,fillOpacity:tc?.75:.25,fillColor:tc||'#facc15'};
+  if(bassaiOf(f.properties))return {color:'#dc2626',weight:2.5,dashArray:'6 4',fillOpacity:tc?.6:.22,fillColor:tc||'#dc2626'};
   if(tc)return {color:isPhoto()?'#fde68a':'#3d2b1f',weight:.6,fillOpacity:.6,fillColor:tc};
   return {color:isPhoto()?'#fde68a':'#c2410c',weight:1,fillOpacity:.04,fillColor:'#c2410c'};
 }
@@ -269,6 +313,8 @@ function openSheet(layer){
   const dl=document.getElementById('s-info');dl.replaceChildren();
   rows.forEach(([k,v])=>{const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=v;dl.append(dt,dd)});
   renderForest(p);
+  const b=bassaiRaw(p)||{};
+  BF.forEach(k=>document.getElementById('b-'+k).value=b[k]||'');
   document.getElementById('memo').value=store.get(currentKey);
   document.getElementById('saved').textContent='';
   document.getElementById('sheet').hidden=false;
@@ -282,7 +328,7 @@ let mt;document.getElementById('memo').addEventListener('input',e=>{clearTimeout
 // ---- 地番データ：大字ごとに、画面に入ったときだけ読み込む ----
 const index=[];let districts=[];const loading={};
 const MINZ=14;
-parcels=L.geoJSON(null,{style:styleFor,onEachFeature:(f,l)=>{l.on('click',()=>openSheet(l));index.push(l)}}).addTo(map);
+parcels=L.geoJSON(null,{style:styleFor,onEachFeature:(f,l)=>{l.on('click',()=>openSheet(l));index.push(l);applyLabel(l)}}).addTo(map);
 function loadDistrict(d){
   if(loading[d.file])return loading[d.file];
   toast(`${d.oaza} の地番を読み込んでいます…`);
