@@ -33,7 +33,20 @@ header h1{font-size:16px;margin:0;font-weight:700;flex:1;min-width:0;white-space
 #search{display:flex;gap:6px;padding:8px max(14px,env(safe-area-inset-right,0px)) 8px max(14px,env(safe-area-inset-left,0px));background:var(--panel);border-bottom:1px solid var(--line);z-index:1000}
 #search input{flex:1;min-width:0;font:inherit;font-family:var(--f-data);padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
 #search button{font:inherit;padding:8px 12px;border-radius:8px;border:0;background:var(--accent);color:var(--accent-fg);cursor:pointer}
+#maparea{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
 #map{flex:1;min-height:0}
+#cands{position:absolute;top:0;left:0;right:0;z-index:1050;max-height:70%;overflow:auto;background:var(--panel);border-bottom:1px solid var(--line);box-shadow:0 6px 16px rgba(0,0,0,.2);
+  padding-left:max(10px,env(safe-area-inset-left,0px));padding-right:max(10px,env(safe-area-inset-right,0px));padding-block:0 8px}
+.chead{position:sticky;top:0;background:var(--panel);display:flex;align-items:center;justify-content:space-between;padding:10px 4px 6px;font-weight:700;font-size:14px}
+.cx{border:0;background:transparent;color:var(--muted);font-size:22px;line-height:1;cursor:pointer;padding:0 4px}
+.cgrp{font-size:12px;color:var(--accent);font-weight:700;letter-spacing:.06em;padding:8px 4px 4px}
+.citem{display:grid;grid-template-columns:auto 1fr;grid-template-areas:"no oz" "no sum";column-gap:12px;row-gap:1px;align-items:center;width:100%;text-align:left;font:inherit;color:var(--fg);
+  background:transparent;border:0;border-top:1px solid var(--line);padding:9px 4px;cursor:pointer}
+.citem:hover,.citem:focus-visible{background:var(--bg)}
+.cno{grid-area:no;font-family:var(--f-data);font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;min-width:4.5em}
+.coz{grid-area:oz;font-size:14px;min-width:0}
+.csum{grid-area:sum;font-size:12px;color:var(--muted);min-width:0}
+.cbas{font-size:11px;color:#dc2626;border:1px solid #dc2626;border-radius:999px;padding:0 6px}
 #locate{position:absolute;right:calc(14px + env(safe-area-inset-right,0px));bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:900;
   width:52px;height:52px;border-radius:50%;border:0;background:var(--panel);color:var(--accent);box-shadow:0 2px 10px rgba(0,0,0,.25);cursor:pointer;display:grid;place-items:center}
 #locate.on{background:var(--accent);color:var(--accent-fg)}
@@ -111,7 +124,7 @@ textarea{width:100%;min-height:90px;font:inherit;padding:8px;border:1px solid va
     <button id="t-age" aria-pressed="false">林齢</button>
   </div>
 </div>
-<div id="map"></div>
+<div id="maparea"><div id="map"></div><div id="cands" hidden role="listbox" aria-label="地番の候補"></div></div>
 <div id="legend" hidden></div>
 <button id="locate" aria-label="現在地を表示">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
@@ -358,11 +371,51 @@ document.getElementById('search').addEventListener('submit',async e=>{
   if(!q)return; if(!districts.length){toast('地番データが入っていません');return}
   toast('検索しています…');
   await Promise.all(districts.map(loadDistrict));
-  const hits=index.filter(l=>chibanOf(l.feature.properties)===q);
+  toastEl.hidden=true;
+  const qq=nz(q);
+  const exact=index.filter(l=>nz(chibanOf(l.feature.properties))===qq);
+  const branch=index.filter(l=>nz(chibanOf(l.feature.properties)).startsWith(qq+'-'));
+  const hits=exact.concat(branch);
   if(!hits.length){toast(`「${q}」は見つかりませんでした`);return}
-  map.fitBounds(hits[0].getBounds(),{maxZoom:18});openSheet(hits[0]);
-  if(hits.length>1)toast(`「${q}」は ${hits.length} 件あります（大字が違います）。1件目を表示中`);
+  if(hits.length===1){goTo(hits[0]);return}
+  showCands(q,exact,branch);
 });
+function goTo(l){closeCands();map.fitBounds(l.getBounds(),{maxZoom:18});openSheet(l)}
+const cands=document.getElementById('cands');
+function closeCands(){cands.hidden=true;cands.replaceChildren()}
+function candSummary(p){
+  const r=forestOf(p);if(!r)return '';
+  const m=mainRec(r),sp=(m.sp||[])[0];
+  return sp?[sp[1]||sp[0],sp[2]?sp[2]+'年生':''].filter(Boolean).join(' '):(m.own||'');
+}
+function showCands(q,exact,branch){
+  cands.replaceChildren();
+  const head=document.createElement('div');head.className='chead';
+  head.append(`「${q}」の候補 ${exact.length+branch.length} 件`);
+  const x=document.createElement('button');x.type='button';x.className='cx';x.textContent='×';x.setAttribute('aria-label','候補を閉じる');x.onclick=closeCands;head.append(x);
+  cands.append(head);
+  const byKey=(a,b)=>{const pa=a.feature.properties,pb=b.feature.properties;
+    return oazaOf(pa).localeCompare(oazaOf(pb),'ja')||chibanOf(pa).localeCompare(chibanOf(pb),'ja',{numeric:true})};
+  const group=(title,list)=>{
+    if(!list.length)return;
+    const t=document.createElement('div');t.className='cgrp';t.textContent=title;cands.append(t);
+    list.sort(byKey).slice(0,100).forEach(l=>{
+      const p=l.feature.properties,b=document.createElement('button');b.type='button';b.className='citem';
+      const az=(forestOf(p)||[]).map(r=>r.az).filter(Boolean)[0]||'';
+      const a=document.createElement('span');a.className='cno';a.textContent=chibanOf(p);
+      const o=document.createElement('span');o.className='coz';o.textContent=[oazaOf(p),az].filter(Boolean).join(' ');
+      const s=document.createElement('span');s.className='csum';
+      const ar=areaM2(l);s.textContent=[candSummary(p),ar>=10000?(ar/10000).toFixed(2)+' ha':Math.round(ar).toLocaleString()+' m²'].filter(Boolean).join('・');
+      if(bassaiOf(p)){const k=document.createElement('span');k.className='cbas';k.textContent='伐採届';o.append(' ',k)}
+      b.append(a,o,s);b.onclick=()=>goTo(l);cands.append(b);
+    });
+    if(list.length>100){const m=document.createElement('div');m.className='cgrp';m.textContent=`ほか ${list.length-100} 件（地番をもっと詳しく入れてください）`;cands.append(m)}
+  };
+  group('一致する地番',exact);
+  group(`「${q}-」で始まる地番`,branch);
+  cands.hidden=false;cands.scrollTop=0;
+}
+map.on('click',closeCands);
 
 // ---- 現在地 ----
 let watchId=null,me=null,acc=null,first=true;const btn=document.getElementById('locate');
