@@ -38,7 +38,7 @@ header h1{font-size:16px;margin:0;font-weight:700;flex:1;min-width:0;white-space
   width:52px;height:52px;border-radius:50%;border:0;background:var(--panel);color:var(--accent);box-shadow:0 2px 10px rgba(0,0,0,.25);cursor:pointer;display:grid;place-items:center}
 #locate.on{background:var(--accent);color:var(--accent-fg)}
 #locate svg{width:26px;height:26px}
-#toast{position:absolute;left:50%;transform:translateX(-50%);top:120px;z-index:1100;background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;max-width:90%}
+#toast{position:absolute;left:50%;transform:translateX(-50%);top:150px;z-index:1100;background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;max-width:90%}
 #sheet{position:absolute;left:0;right:0;bottom:0;z-index:1000;background:var(--panel);border-top:1px solid var(--line);
   border-radius:14px 14px 0 0;box-shadow:0 -4px 16px rgba(0,0,0,.18);
   padding-block:14px calc(16px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
@@ -55,6 +55,18 @@ textarea{width:100%;min-height:90px;font:inherit;padding:8px;border:1px solid va
 .leaflet-container{font-family:var(--f-display)}
 .empty{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:800;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;max-width:min(320px,86%);font-size:14px;line-height:1.6}
 :focus-visible{outline:3px solid var(--sel);outline-offset:2px}
+#tint{display:flex;align-items:center;gap:8px;padding:0 max(14px,env(safe-area-inset-right,0px)) 8px max(14px,env(safe-area-inset-left,0px));background:var(--panel);border-bottom:1px solid var(--line);z-index:1000;font-size:13px;color:var(--muted)}
+#legend{position:absolute;left:calc(10px + env(safe-area-inset-left,0px));bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:900;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12px;display:grid;gap:3px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+#legend div{display:flex;align-items:center;gap:6px}
+#legend i{width:14px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,.25);flex:none}
+.fr{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}
+.fr h3{font-size:15px;margin:0;font-family:var(--f-data);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.fr h3 .az{font-weight:400;color:var(--muted);font-size:13px}
+.chip{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid var(--line);font-weight:400}
+.chip.ho{background:#fef3c7;color:#78350f;border-color:#f59e0b}
+.fr dl{margin:8px 0 4px}
+.nof{font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;margin-top:10px;line-height:1.6}
+.secttl{font-size:12px;letter-spacing:.08em;color:var(--accent);font-weight:700;margin-top:12px}
 </style>
 </head>
 <body>
@@ -69,7 +81,16 @@ textarea{width:100%;min-height:90px;font:inherit;padding:8px;border:1px solid va
   <input id="q" type="search" placeholder="地番で探す（例：1234-5）" aria-label="地番で探す">
   <button type="submit">検索</button>
 </form>
+<div id="tint">
+  <span>色分け</span>
+  <div class="seg" role="group" aria-label="色分け">
+    <button id="t-none" aria-pressed="true">なし</button>
+    <button id="t-species" aria-pressed="false">樹種</button>
+    <button id="t-age" aria-pressed="false">林齢</button>
+  </div>
+</div>
 <div id="map"></div>
+<div id="legend" hidden></div>
 <button id="locate" aria-label="現在地を表示">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
 </button>
@@ -84,7 +105,8 @@ textarea{width:100%;min-height:90px;font:inherit;padding:8px;border:1px solid va
     <button class="close" id="s-close" aria-label="閉じる">×</button>
   </div>
   <dl id="s-info"></dl>
-  <label for="memo">メモ（この端末に保存されます）</label>
+  <div id="s-forest"></div>
+  <label for="memo" style="margin-top:12px">メモ（この端末に保存されます）</label>
   <textarea id="memo" placeholder="例：2026/10 現地確認。境界杭あり。スギ 約40年生。"></textarea>
   <div class="saved" id="saved"></div>
 </section>
@@ -130,9 +152,68 @@ function areaM2(layer){ // 球面上の多角形面積（概算）
 
 let parcels=null,selected=null,currentKey=null;
 const isPhoto=()=>map.hasLayer(photo);
+
+// ---- 森林簿（鹿児島県 森林簿オープンデータ） ----
+const forest={}; // forest[大字][地番] = [小班...]
+const nz=s=>String(s||'').normalize('NFKC').trim();
+const forestOf=p=>{const o=forest[pick(p,['大字名'])];return o?(o[nz(chibanOf(p))]||null):null};
+const mainRec=recs=>recs.reduce((a,b)=>((b.a||0)>(a.a||0)?b:a));
+const SPECIES=[['すぎ','#1f6b3a',s=>s==='すぎ'],['ひのき','#5fa36a',s=>s==='ひのき'],['その他針葉樹','#3a8f8a',s=>s==='まつ'||s==='その他針'],
+  ['広葉樹','#c98a2e',s=>s==='その他広'||s==='くぬぎ'||s==='くす'],['竹林','#b7c93a',s=>/チク|ダケ/.test(s)],['伐採跡地・未立木地','#9c8c7a',(s,t)=>/伐採|未立木|困難|開発/.test(t+s)]];
+const AGES=[['1〜25年（1〜5齢級）','#bfe3b4',k=>k<=5],['26〜50年（6〜10齢級）','#6fbf73',k=>k<=10],['51〜75年（11〜15齢級）','#2e8b57',k=>k<=15],['76年以上（16齢級〜）','#14532d',k=>k>15]];
+let tint='none';
+function tintColor(f){
+  const recs=forestOf(f.properties);if(!recs)return null;
+  const sp=(mainRec(recs).sp||[])[0];if(!sp)return null;
+  if(tint==='species'){const m=SPECIES.find(x=>x[2](sp[1]||'',sp[0]||''));return m?m[1]:'#8b7fb8'}
+  if(tint==='age'){if(!sp[3]||sp[0]!=='人工林'&&sp[0]!=='天然林')return null;return AGES.find(x=>x[2](sp[3]))[1]}
+  return null;
+}
 function styleFor(f){
   const sel=selected&&selected.feature===f;
-  return {color:sel?'#facc15':(isPhoto()?'#fde68a':'#c2410c'),weight:sel?3:1,fillOpacity:sel?.25:.04,fillColor:sel?'#facc15':'#c2410c'};
+  const tc=tint!=='none'?tintColor(f):null;
+  if(sel)return {color:'#facc15',weight:3,fillOpacity:tc?.75:.25,fillColor:tc||'#facc15'};
+  if(tc)return {color:isPhoto()?'#fde68a':'#3d2b1f',weight:.6,fillOpacity:.6,fillColor:tc};
+  return {color:isPhoto()?'#fde68a':'#c2410c',weight:1,fillOpacity:.04,fillColor:'#c2410c'};
+}
+function setTint(t){
+  tint=t;['none','species','age'].forEach(k=>document.getElementById('t-'+k).setAttribute('aria-pressed',k===t));
+  const lg=document.getElementById('legend');lg.replaceChildren();
+  const items=t==='species'?SPECIES.map(x=>[x[0],x[1]]).concat([['その他','#8b7fb8']]):t==='age'?AGES.map(x=>[x[0],x[1]]):[];
+  items.forEach(([n,c])=>{const d=document.createElement('div');const i=document.createElement('i');i.style.background=c;d.append(i,document.createTextNode(n));lg.append(d)});
+  lg.hidden=!items.length;
+  parcels.setStyle(styleFor);
+  if(t!=='none'&&map.getZoom()<MINZ)toast('地図を拡大すると色分けが表示されます');
+}
+['none','species','age'].forEach(k=>document.getElementById('t-'+k).onclick=()=>setTint(k));
+
+function renderForest(p){
+  const box=document.getElementById('s-forest');box.replaceChildren();
+  const recs=forestOf(p);
+  const ttl=document.createElement('div');ttl.className='secttl';ttl.textContent='森林簿';box.append(ttl);
+  if(!recs){const n=document.createElement('div');n.className='nof';n.textContent='この地番は森林簿に載っていません。森林以外の土地か、森林簿と地図で地番の表し方が違う可能性があります。';box.append(n);return}
+  recs.forEach(r=>{
+    const s=document.createElement('div');s.className='fr';
+    const h=document.createElement('h3');h.append(document.createTextNode('林小班 '+r.k));
+    if(r.az){const a=document.createElement('span');a.className='az';a.textContent=r.az;h.append(a)}
+    if(r.ho){const c=document.createElement('span');c.className='chip ho';c.textContent=r.ho+'保安林';h.append(c)}
+    s.append(h);
+    const rows=[];
+    if(r.a!=null)rows.push(['面積',r.a+' ha']);
+    (r.sp||[]).forEach((x,i)=>{const [t,sp,age,kyu,mix]=x;
+      rows.push([(r.sp.length>1?`樹種${i+1}`:'樹種'),[t,sp].filter(Boolean).join('・')+(age?`　${age}年生`:'')+(kyu?`（${kyu}齢級）`:'')+(r.sp.length>1&&mix?`　${mix}割`:'')])});
+    if(r.v!=null)rows.push(['蓄積',r.v.toLocaleString()+' m³']);
+    if(r.own)rows.push(['所有形態',r.own]);
+    if(r.kind)rows.push(['森林の種類',r.kind]);
+    if(r.m)rows.push(['施業方法',r.m]);
+    if(r.chi)rows.push(['地位',r.chi]);
+    if(r.hw)rows.push(['施業履歴',[r.hy&&(r.hy+'年度'),r.hw].filter(Boolean).join('　')]);
+    if(r.fn){const L=['木材生産','水源かん養','山地災害防止','生活環境保全','保健文化'];
+      const hi=r.fn.map((v,i)=>v==='高'?L[i]:null).filter(Boolean);rows.push(['機能「高」',hi.length?hi.join('、'):'なし'])}
+    const dl=document.createElement('dl');
+    rows.forEach(([k,v])=>{const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=v;dl.append(dt,dd)});
+    s.append(dl);box.append(s);
+  });
 }
 function openSheet(layer){
   const prev=selected;selected=layer;if(prev)parcels.resetStyle(prev);layer.setStyle(styleFor(layer.feature));layer.bringToFront();
@@ -145,6 +226,7 @@ function openSheet(layer){
     ['座標の求め方',pick(p,['座標値種別'])||'—']];
   const dl=document.getElementById('s-info');dl.replaceChildren();
   rows.forEach(([k,v])=>{const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=v;dl.append(dt,dd)});
+  renderForest(p);
   document.getElementById('memo').value=store.get(currentKey);
   document.getElementById('saved').textContent='';
   document.getElementById('sheet').hidden=false;
@@ -160,8 +242,9 @@ parcels=L.geoJSON(null,{style:styleFor,onEachFeature:(f,l)=>{l.on('click',()=>op
 function loadDistrict(d){
   if(loading[d.file])return loading[d.file];
   toast(`${d.oaza} の地番を読み込んでいます…`);
-  return loading[d.file]=fetch('data/'+d.file).then(r=>{if(!r.ok)throw 0;return r.json()})
-    .then(gj=>{parcels.addData(gj);toast(`${d.oaza}：${d.count.toLocaleString()} 筆を表示`)})
+  const fj=d.oaza==='その他'?Promise.resolve({}):fetch('forest/'+d.file.replace('.geojson','.json')).then(r=>r.ok?r.json():{}).catch(()=>({}));
+  return loading[d.file]=Promise.all([fetch('data/'+d.file).then(r=>{if(!r.ok)throw 0;return r.json()}),fj])
+    .then(([gj,fd])=>{forest[d.oaza]=fd;parcels.addData(gj);toast(`${d.oaza}：${d.count.toLocaleString()} 筆を表示`)})
     .catch(()=>{delete loading[d.file];toast(`${d.oaza} の読み込みに失敗しました。通信状態を確認してください`)});
 }
 function bboxBounds(b){return L.latLngBounds([b[1],b[0]],[b[3],b[2]])}
@@ -175,7 +258,7 @@ fetch('data/index.json').then(r=>{if(!r.ok)throw 0;return r.json()}).then(list=>
   districts=list;
   const all=list.reduce((b,d)=>b.extend(bboxBounds(d.bbox)),L.latLngBounds([]));
   map.fitBounds(all);
-  map.attributionControl.addAttribution('地番：法務省 登記所備付地図データ（G空間情報センター、AIGID変換）');
+  map.attributionControl.addAttribution('地番：法務省 登記所備付地図データ（G空間情報センター、AIGID変換）／森林簿：鹿児島県');
   map.on('moveend',refresh);refresh();
   toast('地図を拡大すると地番が表示されます');
 }).catch(()=>{document.getElementById('empty').hidden=false});
