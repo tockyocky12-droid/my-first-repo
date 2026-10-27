@@ -70,6 +70,16 @@ textarea{width:100%;min-height:90px;font:inherit;padding:8px;border:1px solid va
 .mapinfo summary{cursor:pointer;padding:4px 0}
 .mapinfo dl{font-size:13px;margin:6px 0}
 .credit{font-size:11px;color:var(--muted);margin-top:6px}
+.areas{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.ab{border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-width:0}
+.ab label,.albl{font-size:12px;color:var(--muted);margin:0}
+.ain{display:flex;align-items:baseline;gap:4px;font-family:var(--f-data)}
+.ain input{width:100%;min-width:0;font:inherit;font-size:20px;font-family:var(--f-data);font-variant-numeric:tabular-nums;border:0;border-bottom:1px dashed var(--line);background:transparent;color:var(--fg);padding:2px 0}
+.ain span{font-size:13px;color:var(--muted)}
+.aval{font-size:20px;font-family:var(--f-data);font-variant-numeric:tabular-nums;padding:2px 0}
+.aval small{font-size:13px;color:var(--muted)}
+.anote{font-size:11px;color:var(--muted);margin-top:2px}
+.anote.warn{color:#d97706;font-weight:700}
 .secttl{font-size:12px;letter-spacing:.08em;color:var(--accent);font-weight:700;margin-top:12px}
 </style>
 </head>
@@ -108,6 +118,18 @@ textarea{width:100%;min-height:90px;font:inherit;padding:8px;border:1px solid va
     </div>
     <button class="close" id="s-close" aria-label="閉じる">×</button>
   </div>
+  <div class="areas">
+    <div class="ab">
+      <label for="chiseki">地積（登記簿）</label>
+      <div class="ain"><input id="chiseki" inputmode="decimal" autocomplete="off" placeholder="未入力"><span>m²</span></div>
+      <div class="anote" id="chiseki-note">登記簿で確認した値を入力</div>
+    </div>
+    <div class="ab">
+      <div class="albl">図上面積（参考）</div>
+      <div class="aval" id="s-area"></div>
+      <div class="anote" id="s-ratio">地図の形から計算</div>
+    </div>
+  </div>
   <div id="s-forest"></div>
   <details class="mapinfo"><summary>地図データの詳細</summary><dl id="s-info"></dl></details>
   <label for="memo" style="margin-top:12px">メモ（この端末に保存されます）</label>
@@ -136,8 +158,18 @@ const toastEl=document.getElementById('toast');let tt;
 function toast(t){toastEl.textContent=t;toastEl.hidden=false;clearTimeout(tt);tt=setTimeout(()=>toastEl.hidden=true,3000)}
 
 // ---- メモ（端末内保存） ----
-const store={get(k){try{return localStorage.getItem('memo:'+k)||''}catch(e){return''}},
-  set(k,v){try{v?localStorage.setItem('memo:'+k,v):localStorage.removeItem('memo:'+k);return true}catch(e){return false}}};
+const store={get(k,ns='memo'){try{return localStorage.getItem(ns+':'+k)||''}catch(e){return''}},
+  set(k,v,ns='memo'){try{v?localStorage.setItem(ns+':'+k,v):localStorage.removeItem(ns+':'+k);return true}catch(e){return false}}};
+let curArea=0;
+const fmtArea=a=>a>=10000?`${(a/10000).toFixed(2)}<small> ha</small>`:`${Math.round(a).toLocaleString()}<small> m²</small>`;
+function updateRatio(){
+  const note=document.getElementById('s-ratio'),cn=document.getElementById('chiseki-note');
+  const c=parseFloat(String(document.getElementById('chiseki').value).normalize('NFKC').replace(/,/g,''));
+  note.className='anote';note.textContent='地図の形から計算';
+  if(!(c>0)){cn.textContent='登記簿で確認した値を入力';return}
+  cn.textContent=`＝ ${(c/10000).toFixed(4)} ha`;
+  if(curArea>0){const r=curArea/c*100;note.textContent=`地積の ${Math.round(r)}%`;if(r<80||r>120)note.className='anote warn'}
+}
 
 // ---- 地番の属性（データの列名の違いを吸収） ----
 const pick=(p,keys)=>{for(const k of keys){if(p[k]!=null&&p[k]!=='')return String(p[k])}return''};
@@ -229,7 +261,9 @@ function openSheet(layer){
   const fr=forestOf(p),az=fr&&[...new Set(fr.map(r=>r.az).filter(Boolean))].join('・');
   document.getElementById('s-oaza').textContent=[oazaOf(p),az].filter(Boolean).join(' ');
   const a=areaM2(layer);
-  const rows=[['図上面積',a>=10000?`${(a/10000).toFixed(2)} ha（${Math.round(a).toLocaleString()} m²）`:`${Math.round(a).toLocaleString()} m²`],
+  curArea=a;document.getElementById('s-area').innerHTML='約 '+fmtArea(a);
+  document.getElementById('chiseki').value=store.get(currentKey,'chiseki');updateRatio();
+  const rows=[['図上面積',`${Math.round(a).toLocaleString()} m²`],
     ['精度区分',pick(p,['精度区分'])||'—'],
     ['座標の求め方',pick(p,['座標値種別'])||'—']];
   const dl=document.getElementById('s-info');dl.replaceChildren();
@@ -240,6 +274,8 @@ function openSheet(layer){
   document.getElementById('sheet').hidden=false;
 }
 document.getElementById('s-close').onclick=()=>{document.getElementById('sheet').hidden=true;if(selected){const s=selected;selected=null;parcels.resetStyle(s)}};
+let ct;document.getElementById('chiseki').addEventListener('input',e=>{updateRatio();clearTimeout(ct);const k=currentKey,v=e.target.value.trim();
+  ct=setTimeout(()=>{if(!store.set(k,v,'chiseki'))toast('地積を保存できませんでした（ブラウザの設定を確認してください）')},500)});
 let mt;document.getElementById('memo').addEventListener('input',e=>{clearTimeout(mt);const k=currentKey,v=e.target.value;
   mt=setTimeout(()=>{document.getElementById('saved').textContent=store.set(k,v)?'保存しました':'保存できませんでした（ブラウザの設定を確認してください）'},500)});
 
