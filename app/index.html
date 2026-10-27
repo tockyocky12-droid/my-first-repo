@@ -69,6 +69,7 @@ textarea{width:100%;min-height:90px;font:inherit;padding:8px;border:1px solid va
 .mapinfo{margin-top:12px;font-size:13px;color:var(--muted)}
 .mapinfo summary{cursor:pointer;padding:4px 0}
 .mapinfo dl{font-size:13px;margin:6px 0}
+.credit{font-size:11px;color:var(--muted);margin-top:6px}
 .secttl{font-size:12px;letter-spacing:.08em;color:var(--accent);font-weight:700;margin-top:12px}
 </style>
 </head>
@@ -195,6 +196,7 @@ function renderForest(p){
   const box=document.getElementById('s-forest');box.replaceChildren();
   const recs=forestOf(p);
   const ttl=document.createElement('div');ttl.className='secttl';ttl.textContent='森林簿';box.append(ttl);
+  const cr=document.createElement('div');cr.className='credit';cr.textContent='この成果品は、鹿児島県森林資源情報データ（ダウンロード）から作成したものである';
   if(!recs){const n=document.createElement('div');n.className='nof';n.textContent='この地番は森林簿に載っていません。森林以外の土地か、森林簿と地図で地番の表し方が違う可能性があります。';box.append(n);return}
   recs.forEach(r=>{
     const s=document.createElement('div');s.className='fr';
@@ -218,6 +220,7 @@ function renderForest(p){
     rows.forEach(([k,v])=>{const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=v;dl.append(dt,dd)});
     s.append(dl);box.append(s);
   });
+  box.append(cr);
 }
 function openSheet(layer){
   const prev=selected;selected=layer;if(prev)parcels.resetStyle(prev);layer.setStyle(styleFor(layer.feature));layer.bringToFront();
