@@ -57,13 +57,23 @@ header h1{font-size:16px;margin:0;font-weight:700;flex:1;min-width:0;white-space
   padding-block:14px calc(16px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
   max-height:60%;overflow:auto}
 #sheet .top{display:flex;align-items:flex-start;gap:10px}
-#sheet h2{font-size:22px;margin:0;flex:1;font-family:var(--f-data)}
 #sheet .oaza{font-size:13px;color:var(--muted);margin-top:2px}
 #sheet .close{border:0;background:transparent;color:var(--muted);font-size:24px;line-height:1;cursor:pointer;padding:0 4px}
 dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:12px 0;font-family:var(--f-data);font-size:14px}
 dt{color:var(--muted)} dd{margin:0;font-variant-numeric:tabular-nums}
 label{font-size:13px;color:var(--muted);display:block;margin-bottom:4px}
-textarea{width:100%;min-height:90px;font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);resize:vertical}
+#sheet h2,#sheet .h2{font-size:22px;margin:0;font-family:var(--f-data);font-weight:700;display:block}
+.shead{flex:1;min-width:0;text-align:left;border:0;background:transparent;color:var(--fg);font:inherit;padding:0;cursor:pointer}
+.shead .oaza{display:block}
+#sheet.min #sbody{display:none}
+#sheet.min{padding-block:10px calc(10px + env(safe-area-inset-bottom,0px))}
+.tabs{display:flex;gap:4px;margin-top:12px;border-bottom:1px solid var(--line)}
+.tabs button{flex:1;font:inherit;font-size:14px;background:transparent;border:0;border-bottom:3px solid transparent;color:var(--muted);padding:8px 4px;cursor:pointer;position:relative}
+.tabs button[aria-selected="true"]{color:var(--fg);font-weight:700;border-bottom-color:var(--accent)}
+.tabs .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#dc2626;margin-left:4px;vertical-align:middle}
+.pane{padding-top:4px}
+#p-forest>#s-forest>.secttl:first-child{display:none}
+textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);resize:none;overflow:auto;margin-top:8px}
 .saved{font-size:12px;color:var(--accent);margin-top:4px;min-height:1em}
 .leaflet-container{font-family:var(--f-display)}
 .empty{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:800;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;max-width:min(320px,86%);font-size:14px;line-height:1.6}
@@ -133,12 +143,14 @@ textarea{width:100%;min-height:90px;font:inherit;padding:8px;border:1px solid va
 <div id="empty" class="empty" hidden>地番データを読み込めませんでした。<br>通信状態を確認して、ページを開き直してください。</div>
 <section id="sheet" hidden aria-live="polite">
   <div class="top">
-    <div style="flex:1;min-width:0">
-      <h2 id="s-chiban"></h2>
-      <div class="oaza" id="s-oaza"></div>
-    </div>
-    <button class="close" id="s-close" aria-label="閉じる">×</button>
+    <button class="shead" id="s-head" type="button" aria-expanded="true" aria-controls="sbody">
+      <span class="h2" id="s-chiban"></span>
+      <span class="oaza" id="s-oaza"></span>
+    </button>
+    <button class="close" id="s-min" type="button" aria-label="小さくする">▾</button>
+    <button class="close" id="s-close" type="button" aria-label="閉じる">×</button>
   </div>
+  <div id="sbody">
   <div class="areas">
     <div class="ab">
       <label for="chiseki">地積（登記簿）</label>
@@ -151,7 +163,16 @@ textarea{width:100%;min-height:90px;font:inherit;padding:8px;border:1px solid va
       <div class="anote" id="s-ratio">地図の形から計算</div>
     </div>
   </div>
-  <div class="secttl">伐採届</div>
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tab-forest" aria-selected="true" type="button">森林簿</button>
+    <button role="tab" id="tab-bassai" aria-selected="false" type="button">伐採届<i class="dot" id="dot-bassai" hidden></i></button>
+    <button role="tab" id="tab-memo" aria-selected="false" type="button">メモ<i class="dot" id="dot-memo" hidden></i></button>
+  </div>
+  <div class="pane" id="p-forest" role="tabpanel">
+    <div id="s-forest"></div>
+    <details class="mapinfo"><summary>地図データの詳細</summary><dl id="s-info"></dl></details>
+  </div>
+  <div class="pane" id="p-bassai" role="tabpanel" hidden>
   <div class="bas">
     <label for="b-label">地図に表示する文字</label>
     <input id="b-label" autocomplete="off" placeholder="例：R8-012 皆伐">
@@ -166,11 +187,12 @@ textarea{width:100%;min-height:90px;font:inherit;padding:8px;border:1px solid va
     </div>
     <div class="bnote">文字を入れると、地図上のこの地番に表示されます。消すと表示も消えます。</div>
   </div>
-  <div id="s-forest"></div>
-  <details class="mapinfo"><summary>地図データの詳細</summary><dl id="s-info"></dl></details>
-  <label for="memo" style="margin-top:12px">メモ（この端末に保存されます）</label>
-  <textarea id="memo" placeholder="例：2026/10 現地確認。境界杭あり。スギ 約40年生。"></textarea>
-  <div class="saved" id="saved"></div>
+  </div>
+  <div class="pane" id="p-memo" role="tabpanel" hidden>
+    <textarea id="memo" aria-label="メモ" placeholder="例：2026/10 現地確認。境界杭あり。スギ 約40年生。"></textarea>
+    <div class="saved" id="saved">この端末に保存されます</div>
+  </div>
+  </div>
 </section>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -213,7 +235,7 @@ BF.forEach(k=>document.getElementById('b-'+k).addEventListener(k==='label'?'inpu
     const ok=store.set(key,Object.keys(o).length?JSON.stringify(o):'','bassai');
     if(!ok){toast('伐採届を保存できませんでした（ブラウザの設定を確認してください）');return}
     if(!o.label&&Object.keys(o).length)toast('地図に出すには「表示する文字」を入れてください');
-    applyLabel(layer);parcels.resetStyle(layer);if(selected===layer)layer.setStyle(styleFor(layer.feature));
+    applyLabel(layer);parcels.resetStyle(layer);if(selected===layer)layer.setStyle(styleFor(layer.feature));updateDots();
   },400);
 }));
 let curArea=0;
@@ -329,14 +351,32 @@ function openSheet(layer){
   const b=bassaiRaw(p)||{};
   BF.forEach(k=>document.getElementById('b-'+k).value=b[k]||'');
   document.getElementById('memo').value=store.get(currentKey);
-  document.getElementById('saved').textContent='';
-  document.getElementById('sheet').hidden=false;
+  document.getElementById('saved').textContent='この端末に保存されます';
+  const sh=document.getElementById('sheet');sh.hidden=false;setMin(false);
+  updateDots();setTab(curTab);fitMemo();
 }
 document.getElementById('s-close').onclick=()=>{document.getElementById('sheet').hidden=true;if(selected){const s=selected;selected=null;parcels.resetStyle(s)}};
 let ct;document.getElementById('chiseki').addEventListener('input',e=>{updateRatio();clearTimeout(ct);const k=currentKey,v=e.target.value.trim();
   ct=setTimeout(()=>{if(!store.set(k,v,'chiseki'))toast('地積を保存できませんでした（ブラウザの設定を確認してください）')},500)});
 let mt;document.getElementById('memo').addEventListener('input',e=>{clearTimeout(mt);const k=currentKey,v=e.target.value;
-  mt=setTimeout(()=>{document.getElementById('saved').textContent=store.set(k,v)?'保存しました':'保存できませんでした（ブラウザの設定を確認してください）'},500)});
+  mt=setTimeout(()=>{document.getElementById('saved').textContent=store.set(k,v)?'保存しました':'保存できませんでした（ブラウザの設定を確認してください）';updateDots()},500)});
+document.getElementById('memo').addEventListener('input',fitMemo);
+// ---- カードのタブと最小化 ----
+const TABS=['forest','bassai','memo'];
+let curTab='forest';try{curTab=localStorage.getItem('ui:tab')||'forest'}catch(e){}
+if(!TABS.includes(curTab))curTab='forest';
+function setTab(t){curTab=t;TABS.forEach(k=>{document.getElementById('tab-'+k).setAttribute('aria-selected',k===t);document.getElementById('p-'+k).hidden=k!==t});
+  try{localStorage.setItem('ui:tab',t)}catch(e){} if(t==='memo')fitMemo()}
+TABS.forEach(k=>document.getElementById('tab-'+k).onclick=()=>setTab(k));
+function setMin(m){const sh=document.getElementById('sheet');sh.classList.toggle('min',m);
+  document.getElementById('s-head').setAttribute('aria-expanded',!m);
+  const b=document.getElementById('s-min');b.textContent=m?'▴':'▾';b.setAttribute('aria-label',m?'大きくする':'小さくする')}
+document.getElementById('s-min').onclick=()=>setMin(!document.getElementById('sheet').classList.contains('min'));
+document.getElementById('s-head').onclick=()=>setMin(!document.getElementById('sheet').classList.contains('min'));
+function fitMemo(){const t=document.getElementById('memo');t.style.height='auto';t.style.height=(t.scrollHeight+2)+'px'}
+function updateDots(){if(!selected)return;const p=selected.feature.properties;
+  document.getElementById('dot-bassai').hidden=!bassaiRaw(p);
+  document.getElementById('dot-memo').hidden=!store.get(keyOf(p))}
 
 // ---- 地番データ：大字ごとに、画面に入ったときだけ読み込む ----
 const index=[];let districts=[];const loading={};
