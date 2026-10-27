@@ -118,11 +118,21 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
 .lbtn{margin-left:auto;font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer;white-space:nowrap}
 .lbtn[aria-pressed="true"]{border-color:#dc2626;color:#dc2626}
 #tint{flex-wrap:wrap}
+.mlab{display:grid;gap:4px;margin-top:6px}
+.mlab input{width:100%;min-width:0;font:inherit;font-family:var(--f-data);padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+.mlab .bnote{font-size:11px;color:var(--muted)}
+.leaflet-tooltip.mlabel{background:#fff;color:#1f4d31;border:1.5px solid #2f6b45;border-radius:6px;font:700 11px/1.3 "BIZ UDGothic","Hiragino Sans",sans-serif;
+  padding:1px 5px;box-shadow:0 1px 4px rgba(0,0,0,.3);white-space:nowrap;max-width:10em;overflow:hidden;text-overflow:ellipsis}
+.leaflet-tooltip.mlabel::before{display:none}
+.leaflet-tooltip.mlabel.hid,.lz-low .leaflet-tooltip.mlabel,.lb-off .leaflet-tooltip.mlabel{visibility:hidden}
+.lbtn{font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer;white-space:nowrap}
+.lbtn[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
 </style>
 </head>
 <body>
 <header>
   <h1>錦江町 地番メモ</h1>
+  <button id="lbl" class="lbtn" type="button" aria-pressed="true">メモの文字</button>
   <div class="seg" role="group" aria-label="背景地図">
     <button id="bm-std" aria-pressed="true">地図</button>
     <button id="bm-photo" aria-pressed="false">写真</button>
@@ -162,6 +172,9 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
   </div>
   <div class="secttl">メモ</div>
   <div class="pane" id="p-memo">
+    <div class="mlab"><label for="m-label">地図に表示する文字</label>
+      <input id="m-label" autocomplete="off" maxlength="30" placeholder="例：境界杭あり／○○さん所有">
+      <div class="bnote">入れると地図上のこの区画に表示されます。消すと表示も消えます。</div></div>
     <textarea id="memo" aria-label="メモ" placeholder="例：2026/10 現地確認。境界杭あり。スギ 約40年生。"></textarea>
     <div class="saved" id="saved">この端末に保存されます</div>
   </div>
@@ -210,6 +223,41 @@ const chibanOf=p=>pick(p,['地番','chiban','CHIBAN']);
 const oazaOf=p=>[pick(p,['大字名','oaza','OAZA']),pick(p,['丁目名','chome']),pick(p,['小字名','koaza'])].filter(Boolean).join(' ');
 const keyOf=p=>[pick(p,['筆ID','fude_id','id']),oazaOf(p),chibanOf(p)].join('|');
 
+// ---- 地図に表示するメモ（端末内保存） ----
+const labelOf=p=>store.get(keyOf(p),'maplabel');
+function applyLabel(l){
+  const t=labelOf(l.feature.properties);
+  if(l.getTooltip())l.unbindTooltip();
+  if(t)l.bindTooltip(t,{permanent:true,direction:'center',className:'mlabel',interactive:false});
+  scheduleDeclutter();
+}
+// 重なる文字は間引く（大きい区画を優先）
+const LABEL_Z=16;let dtm;
+function scheduleDeclutter(){clearTimeout(dtm);dtm=setTimeout(declutter,120)}
+function declutter(){
+  const c=map.getContainer();c.classList.toggle('lz-low',map.getZoom()<LABEL_Z);
+  if(map.getZoom()<LABEL_Z||c.classList.contains('lb-off')||!parcels)return;
+  const vb=map.getBounds(),items=[];
+  parcels.eachLayer(l=>{const t=l.getTooltip&&l.getTooltip();if(!t||!t.getElement())return;
+    if(!vb.intersects(l.getBounds())){t.getElement().classList.add('hid');return}
+    items.push({el:t.getElement(),a:areaM2(l)})});
+  items.sort((a,b)=>b.a-a.a);
+  const placed=[];
+  items.forEach(it=>{it.el.classList.remove('hid');const r=it.el.getBoundingClientRect();
+    const hit=placed.some(p=>!(r.right+2<p.left||r.left-2>p.right||r.bottom+2<p.top||r.top-2>p.bottom));
+    if(hit)it.el.classList.add('hid');else placed.push(r)});
+}
+map.on('zoomend moveend',scheduleDeclutter);
+let lblOn=true;try{lblOn=localStorage.getItem('ui:mlbl')!=='off'}catch(e){}
+function setLbl(on){lblOn=on;map.getContainer().classList.toggle('lb-off',!on);document.getElementById('lbl').setAttribute('aria-pressed',on);
+  try{localStorage.setItem('ui:mlbl',on?'on':'off')}catch(e){} scheduleDeclutter()}
+document.getElementById('lbl').onclick=()=>{setLbl(!lblOn);toast(lblOn?(map.getZoom()<LABEL_Z?'さらに拡大するとメモの文字が出ます':'メモの文字を表示します'):'メモの文字を隠しました')};
+setLbl(lblOn);
+let lt;document.getElementById('m-label').addEventListener('input',e=>{clearTimeout(lt);const layer=selected,k=currentKey,v=e.target.value.trim();
+  lt=setTimeout(()=>{if(!store.set(k,v,'maplabel')){toast('保存できませんでした（ブラウザの設定を確認してください）');return}
+    if(layer){applyLabel(layer);layer.setStyle(styleFor(layer.feature))}
+    if(v&&map.getZoom()<LABEL_Z)toast('拡大すると地図に表示されます')},400)});
+
 function areaM2(layer){ // 球面上の多角形面積（概算）
   const R=6378137,rad=Math.PI/180;let total=0;
   const ll=layer.getLatLngs();
@@ -228,7 +276,7 @@ const nz=s=>String(s||'').normalize('NFKC').trim();
 function styleFor(f){
   const sel=selected&&selected.feature===f;
   if(sel)return {color:'#facc15',weight:3,fillOpacity:.25,fillColor:'#facc15'};
-  if(store.get(keyOf(f.properties)))return {color:isPhoto()?'#fde68a':'#c2410c',weight:1.6,fillOpacity:.28,fillColor:'#2f6b45'};
+  if(store.get(keyOf(f.properties))||labelOf(f.properties))return {color:isPhoto()?'#fde68a':'#c2410c',weight:1.6,fillOpacity:.28,fillColor:'#2f6b45'};
   return {color:isPhoto()?'#fde68a':'#c2410c',weight:1,fillOpacity:.04,fillColor:'#c2410c'};
 }
 function openSheet(layer){
@@ -244,6 +292,7 @@ function openSheet(layer){
     ['座標の求め方',pick(p,['座標値種別'])||'—']];
   const dl=document.getElementById('s-info');dl.replaceChildren();
   rows.forEach(([k,v])=>{const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=v;dl.append(dt,dd)});
+  document.getElementById('m-label').value=labelOf(p);
   document.getElementById('memo').value=store.get(currentKey);
   document.getElementById('saved').textContent='この端末に保存されます';
   const sh=document.getElementById('sheet');sh.hidden=false;setMin(false);
@@ -265,7 +314,7 @@ function fitMemo(){const t=document.getElementById('memo');t.style.height='auto'
 
 // ---- 地番データ：大字ごとに、画面に入ったときだけ読み込む ----
 const index=[];let districts=[];const loading={};
-parcels=L.geoJSON(null,{style:styleFor,onEachFeature:(f,l)=>{l.on('click',()=>openSheet(l));index.push(l)}}).addTo(map);
+parcels=L.geoJSON(null,{style:styleFor,onEachFeature:(f,l)=>{l.on('click',()=>openSheet(l));index.push(l);applyLabel(l)}}).addTo(map);
 function loadDistrict(d){
   if(loading[d.file])return loading[d.file];
   toast(`${d.oaza} の地番を読み込んでいます…`);
@@ -323,6 +372,7 @@ function showCands(q,exact,branch){
       const o=document.createElement('span');o.className='coz';o.textContent=oazaOf(p);
       const s=document.createElement('span');s.className='csum';
       const ar=areaM2(l);s.textContent=[ar>=10000?(ar/10000).toFixed(2)+' ha':Math.round(ar).toLocaleString()+' m²'].filter(Boolean).join('・');
+      const ml=labelOf(p);if(ml){const k=document.createElement('span');k.className='chip';k.textContent=ml;o.append(' ',k)}
       b.append(a,o,s);b.onclick=()=>goTo(l);cands.append(b);
     });
     if(list.length>100){const m=document.createElement('div');m.className='cgrp';m.textContent=`ほか ${list.length-100} 件（地番をもっと詳しく入れてください）`;cands.append(m)}
