@@ -1,5 +1,5 @@
 // 錦江町 森林管理システム：オフラインでも開けるようにするための仕組み
-const VER='v12';
+const VER='v13';
 const SHELL='forest-shell-'+VER, DATA='forest-data-v1', TILES='forest-tiles-v1';
 const SHELL_FILES=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
@@ -16,7 +16,7 @@ self.addEventListener('activate',e=>{
 async function networkFirst(req,cacheName,fresh){
   const c=await caches.open(cacheName);
   // fresh: ブラウザの一時保存を使わず、毎回GitHubに最新版を確認する
-  try{const r=await fetch(fresh?new Request(req,{cache:'no-cache'}):req);if(r&&(r.ok||r.type==='opaque'))c.put(req,r.clone()).catch(()=>{});return r}
+  try{const r=await fetch(fresh?req.url:req,fresh?{cache:'no-cache',credentials:'same-origin'}:undefined);if(r&&(r.ok||r.type==='opaque'))c.put(req,r.clone()).catch(()=>{});return r}
   catch(e){const m=await c.match(req,{ignoreSearch:true});if(m)return m;throw e}
 }
 async function cacheFirst(req,cacheName,trim){
