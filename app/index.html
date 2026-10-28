@@ -103,6 +103,22 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
 #tint{flex-wrap:wrap}
 #tint .fwrap{margin-left:0}
 .fwrap[hidden],[hidden]{display:none!important}
+.hbtn{border:1px solid var(--line);background:transparent;color:var(--fg);font:inherit;font-size:16px;border-radius:8px;width:36px;height:32px;cursor:pointer;flex:none}
+#recp{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;
+  padding:calc(env(safe-area-inset-top,0px) + 56px) max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px));overflow:auto}
+.rp-card{background:var(--panel);color:var(--fg);border-radius:14px;padding:16px;max-width:460px;width:100%;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+.rp-top{display:flex;align-items:center;justify-content:space-between}
+.rp-top h2{font-size:18px;margin:0}
+.rp-top .close{border:0;background:transparent;color:var(--muted);font-size:24px;line-height:1;cursor:pointer;padding:0 4px}
+.rp-sum{font-family:var(--f-data);font-size:13px;color:var(--muted);margin:6px 0 4px}
+.rp-step{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}
+.rp-step h3{font-size:15px;margin:0 0 4px}
+.rp-step p{font-size:13px;color:var(--muted);margin:0 0 10px;line-height:1.6}
+.rp-btns{display:flex;gap:8px;flex-wrap:wrap}
+.pbtn{display:inline-block;font:inherit;font-size:14px;padding:9px 14px;border-radius:8px;border:0;background:var(--accent);color:var(--accent-fg);cursor:pointer}
+#rec-save{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+.rp-note{font-size:12px;color:var(--muted);margin:14px 0 0}
+
 .fwrap{position:relative;display:inline-block;overflow:hidden;border-radius:8px}
 .fwrap .fbtn{display:inline-block;margin:0}
 .fover{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:40px;z-index:2}
@@ -150,7 +166,25 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
     <button id="bm-std" aria-pressed="true">地図</button>
     <button id="bm-photo" aria-pressed="false">写真</button>
   </div>
+  <button id="rec-open" class="hbtn" type="button" aria-label="記録の受け渡し">⇅</button>
 </header>
+<div id="recp" hidden>
+  <div class="rp-card" role="dialog" aria-labelledby="rp-ttl">
+    <div class="rp-top"><h2 id="rp-ttl">記録の受け渡し</h2><button id="rec-close" class="close" type="button" aria-label="閉じる">×</button></div>
+    <p class="rp-sum" id="rp-sum"></p>
+    <div class="rp-step">
+      <h3>この端末の記録を送る</h3>
+      <p>メモ・地積・伐採届をファイルに書き出します。メールやLINEなどで、もう一方の端末に送ってください。</p>
+      <div class="rp-btns"><button id="rec-share" class="pbtn" type="button" hidden>共有して送る</button><button id="rec-save" class="pbtn" type="button">ファイルに保存</button></div>
+    </div>
+    <div class="rp-step">
+      <h3>送られてきた記録を取り込む</h3>
+      <p>受け取ったファイル（kinko-kiroku-○○.json）を選びます。同じ地番の記録は、ファイルの内容で上書きします。この端末にしかない記録は消えません。</p>
+      <div class="rp-btns"><span class="fwrap pwrap"><span class="pbtn">ファイルを選んで取り込む</span><input id="rec-file" class="fover" type="file" accept=".json,application/json,text/plain" aria-label="記録ファイルを選ぶ"></span></div>
+    </div>
+    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。</p>
+  </div>
+</div>
 <form id="search" autocomplete="off">
   <input id="q" type="search" placeholder="地番で探す（例：1234-5）" aria-label="地番で探す">
   <button type="submit">検索</button>
@@ -615,6 +649,38 @@ btn.onclick=()=>{
   },err=>{toast(err.code===1?'位置情報の利用が許可されていません。ブラウザの設定で許可してください':'現在地を取得できませんでした');
     btn.classList.remove('on');watchId=null},{enableHighAccuracy:true,maximumAge:5000,timeout:20000});
 };
+
+// ---- 記録の受け渡し（メモ・地積・伐採届をファイルで別の端末へ） ----
+const REC_NS=['memo','chiseki','bassai'];
+function collectRecords(){const items={};try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(REC_NS.some(n=>k.startsWith(n+':')))items[k]=localStorage.getItem(k)}}catch(e){}return items}
+function recSummary(items){const c={memo:0,chiseki:0,bassai:0};Object.keys(items).forEach(k=>{const n=k.split(':')[0];if(n in c)c[n]++});return `メモ ${c.memo}件・地積 ${c.chiseki}件・伐採届 ${c.bassai}件`}
+function recFile(){const items=collectRecords();const d=new Date();const stamp=d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'-'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0');
+  const body=JSON.stringify({app:'kinko-forest',kind:'records',version:1,exportedAt:d.toISOString(),items},null,1);
+  return {file:new File([body],`kinko-kiroku-${stamp}.json`,{type:'application/json'}),count:Object.keys(items).length,items}}
+function openRec(){document.getElementById('rp-sum').textContent='この端末の記録：'+recSummary(collectRecords());document.getElementById('recp').hidden=false}
+document.getElementById('rec-open').onclick=openRec;
+document.getElementById('rec-close').onclick=()=>document.getElementById('recp').hidden=true;
+document.getElementById('recp').addEventListener('click',e=>{if(e.target.id==='recp')e.target.hidden=true});
+const canShareFiles=(()=>{try{return !!(navigator.canShare&&navigator.canShare({files:[new File(['x'],'t.json',{type:'application/json'})]}))}catch(e){return false}})();
+document.getElementById('rec-share').hidden=!canShareFiles;
+document.getElementById('rec-share').onclick=async()=>{const r=recFile();if(!r.count){toast('送る記録がまだありません');return}
+  try{await navigator.share({files:[r.file],title:'森林管理システムの記録'});toast(`${r.count}件の記録を共有しました`)}catch(e){if(e&&e.name!=='AbortError')toast('共有できませんでした。「ファイルに保存」を使ってください')}};
+document.getElementById('rec-save').onclick=()=>{const r=recFile();if(!r.count){toast('保存する記録がまだありません');return}
+  const a=document.createElement('a');a.href=URL.createObjectURL(r.file);a.download=r.file.name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+  toast(`${r.file.name} を保存しました（ダウンロード）`)};
+document.getElementById('rec-file').addEventListener('change',async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  try{const o=JSON.parse(await f.text());
+    if(!o||o.app!=='kinko-forest'||!o.items)throw new Error('このアプリの記録ファイルではないようです');
+    let add=0,upd=0;const cur=collectRecords();
+    for(const [k,v] of Object.entries(o.items)){if(!REC_NS.some(n=>k.startsWith(n+':'))||typeof v!=='string')continue;
+      if(cur[k]===v)continue; if(k in cur)upd++;else add++; try{localStorage.setItem(k,v)}catch(_){throw new Error('この端末に保存できませんでした（空き容量を確認してください）')}}
+    if(parcels){parcels.eachLayer(l=>{applyLabel(l)});parcels.setStyle(styleFor)}
+    if(selected)openSheet(selected);
+    document.getElementById('rp-sum').textContent='この端末の記録：'+recSummary(collectRecords());
+    toast(add+upd?`取り込みました：新規 ${add}件・上書き ${upd}件`:'新しい記録はありませんでした（すでに同じ内容です）');
+  }catch(err){toast(err.message||'記録を取り込めませんでした')}
+});
 </script>
 <script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))}</script>
 </body>
