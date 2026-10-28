@@ -159,7 +159,7 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
     <button id="t-age" aria-pressed="false">林齢</button>
   </div>
   <button id="lbl" class="lbtn" type="button" aria-pressed="true">届出の文字</button>
-  <span class="fwrap"><span id="fload" class="fbtn">森林簿CSVを読み込む</span><input id="ffile" class="fover" type="file" multiple aria-label="森林簿CSVを選ぶ"></span>
+  <span class="fwrap"><span id="fload" class="fbtn">森林簿CSVを読み込む</span><input id="ffile" class="fover" type="file" accept=".csv,text/csv,text/comma-separated-values,application/csv,application/vnd.ms-excel,text/plain" multiple aria-label="森林簿CSVを選ぶ"></span>
   <span id="fmiss" class="fmiss" hidden></span>
 </div>
 <div id="maparea"><div id="map"></div><div id="cands" hidden role="listbox" aria-label="地番の候補"></div></div>
@@ -438,7 +438,7 @@ function renderForest(p){
     const n=document.createElement('div');n.className='nof';
     n.append('森林簿が読み込まれていません。鹿児島県のサイトから、錦江町分の森林簿CSV（田代町・大根占町の2ファイル）をダウンロードして読み込んでください。一度読み込めば、この端末に保存されます。');
     const r=document.createElement('div');r.className='frow';
-    const b=document.createElement('span');b.className='fwrap';const bs=document.createElement('span');bs.className='fbtn';bs.textContent='CSVを読み込む';const bi=document.createElement('input');bi.type='file';bi.multiple=true;bi.className='fover';bi.setAttribute('aria-label','森林簿CSVを選ぶ');bi.addEventListener('change',onForestFiles);b.append(bs,bi);
+    const b=document.createElement('span');b.className='fwrap';const bs=document.createElement('span');bs.className='fbtn';bs.textContent='CSVを読み込む';const bi=document.createElement('input');bi.type='file';bi.accept='.csv,text/csv,text/comma-separated-values,application/csv,application/vnd.ms-excel,text/plain';bi.multiple=true;bi.className='fover';bi.setAttribute('aria-label','森林簿CSVを選ぶ');bi.addEventListener('change',onForestFiles);b.append(bs,bi);
     const a=document.createElement('a');a.href='https://www.pref.kagoshima.jp/ad12/shinrin-open.html';a.target='_blank';a.rel='noopener';a.textContent='県のダウンロードページ';
     r.append(b,a);n.append(r);box.append(n);return}
   if(!recs){const n=document.createElement('div');n.className='nof';n.textContent='この地番は森林簿に載っていません。森林以外の土地か、森林簿と地図で地番の表し方が違う可能性があります。';box.append(n);return}
