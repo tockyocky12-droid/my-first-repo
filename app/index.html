@@ -179,8 +179,8 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
     </div>
     <div class="rp-step">
       <h3>送られてきた記録を取り込む</h3>
-      <p>受け取ったファイル（kinko-kiroku-○○.json）を選びます。同じ地番の記録は、ファイルの内容で上書きします。この端末にしかない記録は消えません。</p>
-      <div class="rp-btns"><span class="fwrap pwrap"><span class="pbtn">ファイルを選んで取り込む</span><input id="rec-file" class="fover" type="file" accept=".json,application/json,text/plain" aria-label="記録ファイルを選ぶ"></span></div>
+      <p>受け取ったファイル（kinko-kiroku-○○.txt または .json）を選びます。同じ地番の記録は、ファイルの内容で上書きします。この端末にしかない記録は消えません。</p>
+      <div class="rp-btns"><span class="fwrap pwrap"><span class="pbtn">ファイルを選んで取り込む</span><input id="rec-file" class="fover" type="file" accept=".json,.txt,application/json,text/plain" aria-label="記録ファイルを選ぶ"></span></div>
     </div>
     <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。</p>
   </div>
@@ -661,13 +661,21 @@ function openRec(){document.getElementById('rp-sum').textContent='この端末�
 document.getElementById('rec-open').onclick=openRec;
 document.getElementById('rec-close').onclick=()=>document.getElementById('recp').hidden=true;
 document.getElementById('recp').addEventListener('click',e=>{if(e.target.id==='recp')e.target.hidden=true});
-const canShareFiles=(()=>{try{return !!(navigator.canShare&&navigator.canShare({files:[new File(['x'],'t.json',{type:'application/json'})]}))}catch(e){return false}})();
+const canShareFiles=(()=>{try{return !!(navigator.share&&navigator.canShare&&navigator.canShare({files:[new File(['x'],'t.txt',{type:'text/plain'})]}))}catch(e){return false}})();
 document.getElementById('rec-share').hidden=!canShareFiles;
 document.getElementById('rec-share').onclick=async()=>{const r=recFile();if(!r.count){toast('送る記録がまだありません');return}
-  try{await navigator.share({files:[r.file],title:'森林管理システムの記録'});toast(`${r.count}件の記録を共有しました`)}catch(e){if(e&&e.name!=='AbortError')toast('共有できませんでした。「ファイルに保存」を使ってください')}};
+  // スマホの共有で送れるよう、中身はそのままテキストファイル（.txt）として渡す
+  const f=new File([await r.file.text()],r.file.name.replace(/\.json$/,'.txt'),{type:'text/plain'});
+  try{
+    if(navigator.canShare&&!navigator.canShare({files:[f]}))throw Object.assign(new Error('x'),{name:'NotSupported'});
+    await navigator.share({files:[f],title:'森林管理システムの記録',text:'森林管理システムの記録ファイルです'});toast(`${r.count}件の記録を共有しました`)
+  }catch(e){
+    if(e&&e.name==='AbortError')return;
+    saveRec(r);toast('共有できなかったので、ファイルに保存しました。ダウンロードから送ってください');
+  }};
+function saveRec(r){const a=document.createElement('a');a.href=URL.createObjectURL(r.file);a.download=r.file.name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000)}
 document.getElementById('rec-save').onclick=()=>{const r=recFile();if(!r.count){toast('保存する記録がまだありません');return}
-  const a=document.createElement('a');a.href=URL.createObjectURL(r.file);a.download=r.file.name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000);
-  toast(`${r.file.name} を保存しました（ダウンロード）`)};
+  saveRec(r);toast(`${r.file.name} を保存しました（ダウンロード）`)};
 document.getElementById('rec-file').addEventListener('change',async e=>{
   const f=e.target.files[0];e.target.value='';if(!f)return;
   try{const o=JSON.parse(await f.text());
