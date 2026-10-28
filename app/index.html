@@ -57,7 +57,7 @@ header h1{font-size:16px;margin:0;font-weight:700;flex:1;min-width:0;white-space
   width:52px;height:52px;border-radius:50%;border:0;background:var(--panel);color:var(--accent);box-shadow:0 2px 10px rgba(0,0,0,.25);cursor:pointer;display:grid;place-items:center}
 #locate.on{background:var(--accent);color:var(--accent-fg)}
 #locate svg{width:26px;height:26px}
-#toast{position:absolute;left:50%;transform:translateX(-50%);top:150px;z-index:1100;background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;max-width:90%}
+#toast{position:fixed;left:50%;transform:translateX(-50%);top:150px;z-index:3000;background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;max-width:90%}
 #sheet{position:absolute;left:0;right:0;bottom:0;z-index:1000;background:var(--panel);border-top:1px solid var(--line);
   border-radius:14px 14px 0 0;box-shadow:0 -4px 16px rgba(0,0,0,.18);
   padding-block:14px calc(16px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
@@ -118,6 +118,8 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
 .pbtn{display:inline-block;font:inherit;font-size:14px;padding:9px 14px;border-radius:8px;border:0;background:var(--accent);color:var(--accent-fg);cursor:pointer}
 #rec-save{background:transparent;color:var(--accent);border:1px solid var(--accent)}
 .rp-note{font-size:12px;color:var(--muted);margin:14px 0 0}
+.rp-msg{font-size:13px;line-height:1.6;background:var(--bg);border:1px solid var(--accent);border-radius:8px;padding:8px 10px;margin:8px 0 0}
+.rp-ver{display:block;margin-top:6px;font-size:11px;opacity:.7}
 
 .fwrap{position:relative;display:inline-block;overflow:hidden;border-radius:8px}
 .fwrap .fbtn{display:inline-block;margin:0}
@@ -172,6 +174,7 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
   <div class="rp-card" role="dialog" aria-labelledby="rp-ttl">
     <div class="rp-top"><h2 id="rp-ttl">記録の受け渡し</h2><button id="rec-close" class="close" type="button" aria-label="閉じる">×</button></div>
     <p class="rp-sum" id="rp-sum"></p>
+    <p class="rp-msg" id="rp-msg" role="status" hidden></p>
     <div class="rp-step">
       <h3>この端末の記録を送る</h3>
       <p>メモ・地積・伐採届をファイルに書き出します。メールやLINEなどで、もう一方の端末に送ってください。</p>
@@ -182,7 +185,7 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
       <p>受け取ったファイル（kinko-kiroku-○○.txt または .json）を選びます。同じ地番の記録は、ファイルの内容で上書きします。この端末にしかない記録は消えません。</p>
       <div class="rp-btns"><span class="fwrap pwrap"><span class="pbtn">ファイルを選んで取り込む</span><input id="rec-file" class="fover" type="file" accept=".json,.txt,application/json,text/plain" aria-label="記録ファイルを選ぶ"></span></div>
     </div>
-    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。</p>
+    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-28b</span></p>
   </div>
 </div>
 <form id="search" autocomplete="off">
@@ -656,26 +659,27 @@ function collectRecords(){const items={};try{for(let i=0;i<localStorage.length;i
 function recSummary(items){const c={memo:0,chiseki:0,bassai:0};Object.keys(items).forEach(k=>{const n=k.split(':')[0];if(n in c)c[n]++});return `メモ ${c.memo}件・地積 ${c.chiseki}件・伐採届 ${c.bassai}件`}
 function recFile(){const items=collectRecords();const d=new Date();const stamp=d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'-'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0');
   const body=JSON.stringify({app:'kinko-forest',kind:'records',version:1,exportedAt:d.toISOString(),items},null,1);
-  return {file:new File([body],`kinko-kiroku-${stamp}.json`,{type:'application/json'}),count:Object.keys(items).length,items}}
-function openRec(){document.getElementById('rp-sum').textContent='この端末の記録：'+recSummary(collectRecords());document.getElementById('recp').hidden=false}
+  return {file:new File([body],`kinko-kiroku-${stamp}.json`,{type:'application/json'}),txt:new File([body],`kinko-kiroku-${stamp}.txt`,{type:'text/plain'}),count:Object.keys(items).length,items}}
+function rpMsg(t){const m=document.getElementById('rp-msg');m.textContent=t;m.hidden=!t}
+function openRec(){rpMsg('');document.getElementById('rp-sum').textContent='この端末の記録：'+recSummary(collectRecords());document.getElementById('recp').hidden=false}
 document.getElementById('rec-open').onclick=openRec;
 document.getElementById('rec-close').onclick=()=>document.getElementById('recp').hidden=true;
 document.getElementById('recp').addEventListener('click',e=>{if(e.target.id==='recp')e.target.hidden=true});
 const canShareFiles=(()=>{try{return !!(navigator.share&&navigator.canShare&&navigator.canShare({files:[new File(['x'],'t.txt',{type:'text/plain'})]}))}catch(e){return false}})();
 document.getElementById('rec-share').hidden=!canShareFiles;
-document.getElementById('rec-share').onclick=async()=>{const r=recFile();if(!r.count){toast('送る記録がまだありません');return}
+document.getElementById('rec-share').onclick=async()=>{const r=recFile();if(!r.count){rpMsg('送る記録がまだありません');return}
   // スマホの共有で送れるよう、中身はそのままテキストファイル（.txt）として渡す
-  const f=new File([await r.file.text()],r.file.name.replace(/\.json$/,'.txt'),{type:'text/plain'});
+  const f=r.txt;rpMsg('共有の画面を開いています…');
   try{
     if(navigator.canShare&&!navigator.canShare({files:[f]}))throw Object.assign(new Error('x'),{name:'NotSupported'});
-    await navigator.share({files:[f],title:'森林管理システムの記録',text:'森林管理システムの記録ファイルです'});toast(`${r.count}件の記録を共有しました`)
+    await navigator.share({files:[f],title:'森林管理システムの記録'});rpMsg(`${r.count}件の記録を共有しました`)
   }catch(e){
-    if(e&&e.name==='AbortError')return;
-    saveRec(r);toast('共有できなかったので、ファイルに保存しました。ダウンロードから送ってください');
+    if(e&&e.name==='AbortError'){rpMsg('共有を取りやめました');return}
+    saveRec(r);rpMsg(`共有できなかったので、ダウンロードフォルダに「${r.file.name}」を保存しました。そのファイルをLINEやメールで送ってください。（理由：${e&&e.name||'不明'}）`);
   }};
 function saveRec(r){const a=document.createElement('a');a.href=URL.createObjectURL(r.file);a.download=r.file.name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000)}
-document.getElementById('rec-save').onclick=()=>{const r=recFile();if(!r.count){toast('保存する記録がまだありません');return}
-  saveRec(r);toast(`${r.file.name} を保存しました（ダウンロード）`)};
+document.getElementById('rec-save').onclick=()=>{const r=recFile();if(!r.count){rpMsg('保存する記録がまだありません');return}
+  saveRec(r);rpMsg(`ダウンロードフォルダに「${r.file.name}」を保存しました`)};
 document.getElementById('rec-file').addEventListener('change',async e=>{
   const f=e.target.files[0];e.target.value='';if(!f)return;
   try{const o=JSON.parse(await f.text());
@@ -686,8 +690,8 @@ document.getElementById('rec-file').addEventListener('change',async e=>{
     if(parcels){parcels.eachLayer(l=>{applyLabel(l)});parcels.setStyle(styleFor)}
     if(selected)openSheet(selected);
     document.getElementById('rp-sum').textContent='この端末の記録：'+recSummary(collectRecords());
-    toast(add+upd?`取り込みました：新規 ${add}件・上書き ${upd}件`:'新しい記録はありませんでした（すでに同じ内容です）');
-  }catch(err){toast(err.message||'記録を取り込めませんでした')}
+    rpMsg(add+upd?`取り込みました：新規 ${add}件・上書き ${upd}件`:'新しい記録はありませんでした（すでに同じ内容です）');
+  }catch(err){rpMsg(err.message||'記録を取り込めませんでした')}
 });
 </script>
 <script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))}</script>
