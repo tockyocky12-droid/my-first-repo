@@ -102,12 +102,16 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
 .frow a{color:var(--accent);font-size:13px}
 #tint{flex-wrap:wrap}
 #tint .fwrap{margin-left:0}
+.fwrap[hidden],[hidden]{display:none!important}
 .fwrap{position:relative;display:inline-block;overflow:hidden;border-radius:8px}
 .fwrap .fbtn{display:inline-block;margin:0}
 .fover{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:40px;z-index:2}
 .fwrap:focus-within .fbtn{outline:3px solid var(--sel);outline-offset:2px}
 .fbtn.part{border-color:#d97706;color:#d97706}
 .fmiss{font-size:12px;color:#d97706}
+.freload{border-top:1px solid var(--line);padding-top:10px;margin-top:12px}
+.freload .fbtn{background:transparent!important;color:var(--fg)!important;border:1px dashed var(--muted)!important;font-size:12px!important;padding:6px 10px!important}
+.fcount{font-size:11px;color:var(--muted)}
 .mapinfo{margin-top:12px;font-size:13px;color:var(--muted)}
 .mapinfo summary{cursor:pointer;padding:4px 0}
 .mapinfo dl{font-size:13px;margin:6px 0}
@@ -373,6 +377,8 @@ function setForest(obj){
   b.classList.toggle('on',forestLoaded);b.classList.toggle('part',forestLoaded&&missing.length>0);
   const note=document.getElementById('fmiss');
   note.hidden=!(forestLoaded&&missing.length);note.textContent=missing.length?`${missing.join('・')}の森林簿が未読込です`:'';
+  // 両方の町を読み込んだら上の段のボタンは隠す（読み込み直しは森林簿タブの下から）
+  b.parentElement.hidden=forestLoaded&&!missing.length;
   if(parcels)parcels.setStyle(styleFor);
   if(selected)openSheet(selected);
 }
@@ -465,6 +471,11 @@ function renderForest(p){
     s.append(dl);box.append(s);
   });
   box.append(cr);
+  const rl=document.createElement('div');rl.className='frow freload';
+  const w=document.createElement('span');w.className='fwrap';const ws=document.createElement('span');ws.className='fbtn';ws.textContent='森林簿CSVを読み込み直す';
+  const wi=document.createElement('input');wi.type='file';wi.accept=document.getElementById('ffile').accept;wi.multiple=true;wi.className='fover';wi.setAttribute('aria-label','森林簿CSVを選ぶ');wi.addEventListener('change',onForestFiles);w.append(ws,wi);
+  const cnt=document.createElement('span');cnt.className='fcount';cnt.textContent=`読込済み ${countRows(forest).toLocaleString()}件・県の更新時に使います`;
+  rl.append(w,cnt);box.append(rl);
 }
 function openSheet(layer){
   const prev=selected;selected=layer;if(prev)parcels.resetStyle(prev);layer.setStyle(styleFor(layer.feature));layer.bringToFront();
