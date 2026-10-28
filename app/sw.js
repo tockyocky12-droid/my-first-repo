@@ -1,5 +1,5 @@
 // 錦江町 森林管理システム：オフラインでも開けるようにするための仕組み
-const VER='v11';
+const VER='v12';
 const SHELL='forest-shell-'+VER, DATA='forest-data-v1', TILES='forest-tiles-v1';
 const SHELL_FILES=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
@@ -13,9 +13,10 @@ self.addEventListener('activate',e=>{
   e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k.startsWith('forest-shell-')&&k!==SHELL).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));
 });
 
-async function networkFirst(req,cacheName){
+async function networkFirst(req,cacheName,fresh){
   const c=await caches.open(cacheName);
-  try{const r=await fetch(req);if(r&&(r.ok||r.type==='opaque'))c.put(req,r.clone()).catch(()=>{});return r}
+  // fresh: ブラウザの一時保存を使わず、毎回GitHubに最新版を確認する
+  try{const r=await fetch(fresh?new Request(req,{cache:'no-cache'}):req);if(r&&(r.ok||r.type==='opaque'))c.put(req,r.clone()).catch(()=>{});return r}
   catch(e){const m=await c.match(req,{ignoreSearch:true});if(m)return m;throw e}
 }
 async function cacheFirst(req,cacheName,trim){
@@ -34,7 +35,7 @@ async function trimCache(c,max){
 self.addEventListener('fetch',e=>{
   const req=e.request;if(req.method!=='GET')return;
   const u=new URL(req.url);
-  if(req.mode==='navigate'||(u.origin===location.origin&&u.pathname.endsWith('/app/index.html'))){e.respondWith(networkFirst(req,SHELL));return}
+  if(req.mode==='navigate'||(u.origin===location.origin&&(u.pathname.endsWith('/app/index.html')||u.pathname.endsWith('/app/')))){e.respondWith(networkFirst(req,SHELL,true));return}
   if(u.origin===location.origin&&u.pathname.endsWith('/app/data/index.json')){e.respondWith(networkFirst(req,DATA));return}
   if(u.origin===location.origin&&u.pathname.includes('/app/data/')){e.respondWith(networkFirst(req,DATA));return}
   if(u.hostname==='cyberjapandata.gsi.go.jp'){e.respondWith(cacheFirst(req,TILES,TILE_MAX));return}
