@@ -133,8 +133,9 @@ table.sb td.n{text-align:right}
   <button id="cond-open" class="hbtn" type="button" aria-label="判定条件">条件</button>
 </header>
 <div id="bar">
-  <span>表示</span>
-  <div class="seg" role="group" aria-label="塗り分け">
+  <span>色分け</span>
+  <div class="seg" role="group" aria-label="色分け">
+    <button id="v-none" aria-pressed="false">なし</button>
     <button id="v-zone" aria-pressed="true">ゾーン案</button>
     <button id="v-plan" aria-pressed="false">現行計画の区分</button>
     <button id="v-slope" aria-pressed="false">傾斜</button>
@@ -155,7 +156,7 @@ table.sb td.n{text-align:right}
     <div class="opt"><input type="checkbox" id="o-plan"><label for="o-plan">現行計画の水源涵養・山地災害防止の区分は「環境保全林」にする<small>市町村森林整備計画の公益的機能別施業森林の区分を引き継ぎます</small></label></div>
     <div class="opt"><input type="checkbox" id="o-sanchi"><label for="o-sanchi">山地災害防止が「高」の人工林は「環境保全林」にする<small>木材生産が「高」でも環境保全林に入れます。対象がかなり広くなります</small></label></div>
     <div class="opt"><input type="checkbox" id="o-suigen"><label for="o-suigen">水源かん養が「高」の人工林は「環境保全林」にする</label></div>
-    <div class="opt"><input type="checkbox" id="o-slope"><label for="o-slope">平均傾斜が <select id="o-slopev" aria-label="傾斜"></select> 以上の人工林・伐採跡地は「環境保全林」にする<small id="o-slope-note">国土地理院の標高データから計算した、地番ごとの平均傾斜を使います。先に「傾斜」表示で傾斜を計算してください</small></label></div>
+    <div class="opt"><input type="checkbox" id="o-slope"><label for="o-slope">平均傾斜が <select id="o-slopev" aria-label="傾斜"></select> 以上の人工林・伐採跡地は「環境保全林」にする<small id="o-slope-note">国土地理院の標高データから計算した、地番ごとの平均傾斜を使います。先に色分けの「傾斜」で傾斜を計算してください</small></label></div>
     <div class="opt"><input type="checkbox" id="o-kyu"><label for="o-kyu">木材生産林は <select id="o-kyuv" aria-label="齢級"></select> 以上の人工林に限る<small>若い人工林は、育つまで環境保全林として扱います</small></label></div>
     <div class="btns"><button class="pbtn" id="cond-apply" type="button">この条件で判定する</button><button class="pbtn ghost" id="cond-reset" type="button">はじめの条件に戻す</button></div>
   </div>
@@ -373,7 +374,7 @@ function saveHide(){try{localStorage.setItem('zoning:hide',JSON.stringify({zone:
 function styleFor(f){
   const info=parcelInfo(f.properties),sel=selected&&selected.feature===f;
   let col=null;
-  if(info){if(view==='zone'){if(!hide.zone.has(info.zone))col=ZMAP[info.zone].c}else if(view==='slope'){const s=slopes[pslKey(f.properties)];const c=s!=null?slopeClass(s):null;if(c&&!hide.slope.has(c.k))col=c.c}else if(info.plan&&!hide.plan.has(info.plan.m))col=info.plan.c}
+  if(info&&view!=='none'){if(view==='zone'){if(!hide.zone.has(info.zone))col=ZMAP[info.zone].c}else if(view==='slope'){const s=slopes[pslKey(f.properties)];const c=s!=null?slopeClass(s):null;if(c&&!hide.slope.has(c.k))col=c.c}else if(info.plan&&!hide.plan.has(info.plan.m))col=info.plan.c}
   const line=sel?'#facc15':(isPhoto()?'#fde68a':'#6b4f3a');
   if(!col)return{color:line,weight:sel?3:.5,opacity:col||sel?1:.35,fillOpacity:sel?.2:0,fillColor:'#facc15'};
   return{color:line,weight:sel?3:.5,opacity:sel?1:.5,fillColor:col,fillOpacity:sel?.85:.62};
@@ -447,9 +448,10 @@ function refresh(){const z=map.getZoom(),vb=map.getBounds();
 fetch('../app/data/index.json').then(r=>r.json()).then(list=>{districts=list.filter(d=>d.oaza!=='その他');
   map.fitBounds(districts.reduce((b,d)=>b.extend(bb(d.bbox)),L.latLngBounds([])));map.on('moveend',refresh);refresh()})
   .catch(()=>toast('地番データを読み込めませんでした。通信状態を確認してください'));
-function setView(v){view=v;if(kkLayer)kkLayer.setStyle(kkStyle);['zone','plan','slope'].forEach(k=>document.getElementById('v-'+k).setAttribute('aria-pressed',v===k));
+function setView(v){view=v;if(kkLayer)kkLayer.setStyle(kkStyle);['none','zone','plan','slope'].forEach(k=>document.getElementById('v-'+k).setAttribute('aria-pressed',v===k));
   restyle();if(!selected)showSummary()}
 document.getElementById('v-zone').onclick=()=>setView('zone');
+document.getElementById('v-none').onclick=()=>{setView('none');toast('色分けを消しました。航空写真を見るときは、右上の「写真」を押してください')};
 document.getElementById('v-slope').onclick=()=>setView('slope');
 document.getElementById('v-plan').onclick=()=>setView('plan');
 
@@ -506,7 +508,7 @@ function showSummary(){
     panel.append(el('p','credit','標高：国土地理院 地理院タイル（標高タイル）を加工して作成'));
     panel.append(exportBtn());
     panel.append(el('p','credit','この成果品は、鹿児島県森林資源情報データ（ダウンロード）から作成したものである'));return}
-  if(view==='zone'){
+  if(view==='zone'||view==='none'){ // 「なし」のときも、ゾーン案の集計を出しておく
     const {res,total,manual}=summarize();
     top.append(el("h2",null,"ゾーン別の面積（試案）"),el('span','sub',`森林簿の面積（ha）・${towns().join('・')}`));panel.append(top);
     const tb=el('table','sum');
@@ -585,7 +587,7 @@ function fillCond(){
   ruleText().forEach(([z,t],i)=>{const d=el('div','rule');const s=el('span','sw');s.style.background=ZMAP[z].c;const zn=el('span','z',ZMAP[z].n);d.append(`${i+1}. ${t} → `,s,zn);box.append(d)});
   ['hoan','plan','sanchi','suigen','kyu','slope'].forEach(k=>document.getElementById('o-'+k).checked=!!opts[k]);
   const ss=document.getElementById('o-slopev');if(!ss.options.length){[20,25,30,35,40].forEach(v=>{const o=el('option',null,`${v}度`);o.value=v;ss.append(o)})}ss.value=opts.slopev;
-  document.getElementById('o-slope-note').textContent=slopeReady()?`計算済みの平均傾斜（${Object.keys(slopes).length.toLocaleString()}地番）を使います。急な森林ほど、木材の搬出に手間と費用がかかります`:'国土地理院の標高データから計算した、地番ごとの平均傾斜を使います。先に「傾斜」表示で傾斜を計算してください';
+  document.getElementById('o-slope-note').textContent=slopeReady()?`計算済みの平均傾斜（${Object.keys(slopes).length.toLocaleString()}地番）を使います。急な森林ほど、木材の搬出に手間と費用がかかります`:'国土地理院の標高データから計算した、地番ごとの平均傾斜を使います。先に色分けの「傾斜」で傾斜を計算してください';
   const sv=document.getElementById('o-kyuv');if(!sv.options.length){for(let i=6;i<=14;i++){const o=el('option',null,`${i}齢級（${i*5-4}年生）`);o.value=i;sv.append(o)}}sv.value=opts.kyuv;
 }
 function readCond(){['hoan','plan','sanchi','suigen','kyu','slope'].forEach(k=>opts[k]=document.getElementById('o-'+k).checked);opts.slopev=Number(document.getElementById('o-slopev').value)||35;opts.kyuv=Number(document.getElementById('o-kyuv').value)}
@@ -597,7 +599,7 @@ document.getElementById('cond-apply').onclick=()=>{readCond();try{localStorage.s
 document.getElementById('cond-reset').onclick=()=>{opts=Object.assign({},DEF);fillCond()};
 
 // ===== CSV書き出し（小班ごとの判定結果） =====
-const ZVER='版 2026-10-30z6';
+const ZVER='版 2026-10-30z7';
 function exportBtn(){const w=el('div','expw');const b=el('button','pbtn ghost','判定結果をCSVで書き出す');b.type='button';b.onclick=exportCSV;
   w.append(b,el('span','note','小班ごとの判定・傾斜などをExcelで開ける形で保存します'),el('span','zver',ZVER));return w}
 function exportCSV(){
