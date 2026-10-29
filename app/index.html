@@ -173,17 +173,22 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
 .brow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .brow>div{min-width:0}
 .bnote{font-size:11px;color:var(--muted)}
+.msub{margin-top:10px}
+.msub>label{font-size:13px;font-weight:700;color:var(--fg);display:block;margin-bottom:4px}
+.msub>input{width:100%;min-width:0;font:inherit;font-family:var(--f-data);padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+.msub textarea{margin-top:0}
 .bdel{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px;font-size:13px}
 .bdelbtn{font:inherit;font-size:13px;padding:6px 12px;border-radius:8px;border:1px solid #dc2626;background:transparent;color:#dc2626;cursor:pointer}
 .bdelbtn.solid{background:#dc2626;color:#fff}
 .bdel .plain{font:inherit;font-size:13px;background:transparent;border:0;color:var(--muted);cursor:pointer;padding:6px 4px}
-.leaflet-tooltip.blabel{background:#fff;color:#991b1b;border:2px solid #dc2626;border-radius:6px;font:700 12px/1.3 "BIZ UDGothic","Hiragino Sans",sans-serif;padding:2px 6px;box-shadow:0 1px 4px rgba(0,0,0,.3);white-space:nowrap}
+.leaflet-tooltip.blabel{background:#fff;color:#14532d;border:2px solid #2f6b45;border-radius:6px;font:700 12px/1.3 "BIZ UDGothic","Hiragino Sans",sans-serif;padding:2px 6px;box-shadow:0 1px 4px rgba(0,0,0,.3);white-space:nowrap}
 .leaflet-tooltip.blabel::before{display:none}
 .leaflet-tooltip.blabel{font-size:11px;padding:1px 5px;border-width:1.5px;max-width:9em;overflow:hidden;text-overflow:ellipsis}
+.leaflet-tooltip.blabel.bas{color:#991b1b;border-color:#dc2626}
 .leaflet-tooltip.blabel.done{color:#57534e;border-color:#a8a29e;background:#f5f5f4}
 .leaflet-tooltip.blabel.hid,.lz-low .leaflet-tooltip.blabel,.lb-off .leaflet-tooltip.blabel{visibility:hidden}
 .lbtn{margin-left:auto;font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer;white-space:nowrap}
-.lbtn[aria-pressed="true"]{border-color:#dc2626;color:#dc2626}
+.lbtn[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
 #tint{flex-wrap:wrap}
 </style>
 </head>
@@ -203,7 +208,7 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
     <p class="rp-msg" id="rp-msg" role="status" hidden></p>
     <div class="rp-step">
       <h3>この端末の記録を送る</h3>
-      <p>メモ・地積・伐採届・施業履歴をファイルに書き出します。メールやLINEなどで、もう一方の端末に送ってください。</p>
+      <p>メモ表示・メモ内部記録・地積・伐採届・施業履歴をファイルに書き出します。メールやLINEなどで、もう一方の端末に送ってください。</p>
       <div class="rp-btns"><button id="rec-share" class="pbtn" type="button" hidden>共有して送る</button><button id="rec-save" class="pbtn" type="button">ファイルに保存</button></div>
     </div>
     <div class="rp-step">
@@ -211,7 +216,7 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
       <p>受け取ったファイル（kinko-kiroku-○○.txt または .json）を選びます。同じ地番の記録は、ファイルの内容で上書きします。この端末にしかない記録は消えません。</p>
       <div class="rp-btns"><span class="fwrap pwrap"><span class="pbtn">ファイルを選んで取り込む</span><input id="rec-file" class="fover" type="file" accept=".json,.txt,application/json,text/plain" aria-label="記録ファイルを選ぶ"></span></div>
     </div>
-    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-29</span></p>
+    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-29b</span></p>
   </div>
 </div>
 <form id="search" autocomplete="off">
@@ -226,7 +231,7 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
     <button id="t-age" aria-pressed="false">林齢</button>
     <button id="t-rireki" aria-pressed="false">施業</button>
   </div>
-  <button id="lbl" class="lbtn" type="button" aria-pressed="true">届出の文字</button>
+  <button id="lbl" class="lbtn" type="button" aria-pressed="true">メモ表示</button>
   <span class="fwrap"><span id="fload" class="fbtn">森林簿CSVを読み込む</span><input id="ffile" class="fover" type="file" accept=".csv,text/csv,text/comma-separated-values,application/csv,application/vnd.ms-excel,text/plain" multiple aria-label="森林簿CSVを選ぶ"></span>
   <span id="fmiss" class="fmiss" hidden></span>
 </div>
@@ -263,7 +268,7 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
     <button role="tab" id="tab-forest" aria-selected="true" type="button">森林簿</button>
     <button role="tab" id="tab-rireki" aria-selected="false" type="button">施業履歴<i class="dot" id="dot-rireki" hidden></i></button>
     <button role="tab" id="tab-bassai" aria-selected="false" type="button">伐採届<i class="dot" id="dot-bassai" hidden></i></button>
-    <button role="tab" id="tab-memo" aria-selected="false" type="button">メモ<i class="dot" id="dot-memo" hidden></i></button>
+    <button role="tab" id="tab-memo" aria-selected="false" type="button">メモ表示<i class="dot" id="dot-memo" hidden></i></button>
   </div>
   <div class="pane" id="p-forest" role="tabpanel">
     <div id="s-forest"></div>
@@ -271,8 +276,6 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
   </div>
   <div class="pane" id="p-bassai" role="tabpanel" hidden>
   <div class="bas">
-    <label for="b-label">地図に表示する文字</label>
-    <input id="b-label" autocomplete="off" placeholder="例：R8-012 皆伐">
     <div class="brow">
       <div><label for="b-date">受理日</label><input id="b-date" type="date"></div>
       <div><label for="b-method">伐採方法</label>
@@ -282,7 +285,7 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
       <div><label for="b-from">伐採開始</label><input id="b-from" type="date"></div>
       <div><label for="b-to">伐採終了</label><input id="b-to" type="date"></div>
     </div>
-    <div class="bnote">文字を入れると、地図上のこの地番に表示されます。</div>
+    <div class="bnote">伐採届のある地番は、地図で赤い点線の枠になります。地図に文字を出すときは「メモ表示」タブで入力します。</div>
     <div class="bdel" id="b-delrow"><button type="button" id="b-del" class="bdelbtn">この伐採届を削除</button></div>
   </div>
   </div>
@@ -308,8 +311,12 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
     <datalist id="rk-whos"></datalist>
   </div>
   <div class="pane" id="p-memo" role="tabpanel" hidden>
-    <textarea id="memo" aria-label="メモ" placeholder="例：2026/10 現地確認。境界杭あり。スギ 約40年生。"></textarea>
-    <div class="saved" id="saved">この端末に保存されます</div>
+    <div class="msub"><label for="m-label">メモ画面表示</label>
+      <input id="m-label" autocomplete="off" placeholder="例：R8-012 皆伐">
+      <div class="bnote">入れた文字が、地図上のこの地番に表示されます。消すと表示も消えます。</div></div>
+    <div class="msub"><label for="memo">メモ内部記録</label>
+      <textarea id="memo" placeholder="例：2026/10 現地確認。境界杭あり。スギ 約40年生。"></textarea>
+      <div class="saved" id="saved">この端末に保存されます（地図には表示されません）</div></div>
   </div>
   </div>
 </section>
@@ -338,15 +345,22 @@ function toast(t){toastEl.textContent=t;toastEl.hidden=false;clearTimeout(tt);tt
 const store={get(k,ns='memo'){try{return localStorage.getItem(ns+':'+k)||''}catch(e){return''}},
   set(k,v,ns='memo'){try{v?localStorage.setItem(ns+':'+k,v):localStorage.removeItem(ns+':'+k);return true}catch(e){return false}}};
 // ---- 伐採届（端末内保存） ----
-const BF=['label','date','method','from','to'];
+const BF=['date','method','from','to'];
 function bassaiRaw(p){const s=store.get(keyOf(p),'bassai');if(!s)return null;try{return JSON.parse(s)}catch(e){return null}}
-function bassaiOf(p){const o=bassaiRaw(p);return o&&o.label?o:null}
+function bassaiOf(p){const o=bassaiRaw(p);return o&&BF.some(k=>o[k])?o:null}
+const mlabelOf=p=>store.get(keyOf(p),'mlabel');
+// 以前の版で伐採届に入れていた「地図に表示する文字」を、メモ画面表示へ移す
+function migrateLabels(){try{const ks=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('bassai:'))ks.push(k)}
+  ks.forEach(k=>{let o;try{o=JSON.parse(localStorage.getItem(k)||'null')}catch(e){return}if(!o||!o.label)return;
+    const mk='mlabel:'+k.slice(7);if(!localStorage.getItem(mk))localStorage.setItem(mk,o.label);
+    delete o.label;Object.keys(o).length?localStorage.setItem(k,JSON.stringify(o)):localStorage.removeItem(k)})}catch(e){}}
+migrateLabels();
 const today=()=>new Date().toISOString().slice(0,10);
 const isDone=b=>!!(b.to&&b.to<today());
 function applyLabel(l){
-  const b=bassaiOf(l.feature.properties);
+  const p=l.feature.properties,t=mlabelOf(p),b=bassaiOf(p);
   if(l.getTooltip())l.unbindTooltip();
-  if(b)l.bindTooltip(b.label,{permanent:true,direction:'center',className:'blabel'+(isDone(b)?' done':''),interactive:false});
+  if(t)l.bindTooltip(t,{permanent:true,direction:'center',className:'blabel'+(b?(isDone(b)?' done':' bas'):''),interactive:false});
   scheduleDeclutter();
 }
 // ラベルの重なりを間引く：伐採期間中→新しい受理日の順に優先して表示し、重なるものは隠す
@@ -357,8 +371,8 @@ function declutter(){
   if(map.getZoom()<LABEL_Z||c.classList.contains('lb-off'))return;
   const items=[];
   parcels&&parcels.eachLayer(l=>{const t=l.getTooltip&&l.getTooltip();if(!t||!t.getElement())return;
-    const b=bassaiOf(l.feature.properties)||{};items.push({el:t.getElement(),done:isDone(b),d:b.date||''})});
-  items.sort((a,b)=>(a.done-b.done)||(b.d.localeCompare(a.d)));
+    const b=bassaiOf(l.feature.properties);items.push({el:t.getElement(),pri:b?(isDone(b)?1:0):2,d:(b&&b.date)||''})});
+  items.sort((a,b)=>(a.pri-b.pri)||(b.d.localeCompare(a.d))); // 伐採期間中の届出→終了した届出→そのほかのメモ
   const placed=[];
   items.forEach(it=>{it.el.classList.remove('hid');const r=it.el.getBoundingClientRect();
     const hit=placed.some(p=>!(r.right+2<p.left||r.left-2>p.right||r.bottom+2<p.top||r.top-2>p.bottom));
@@ -368,14 +382,14 @@ map.on('zoomend moveend',scheduleDeclutter);
 let lblOn=true;try{lblOn=localStorage.getItem('ui:lbl')!=='off'}catch(e){}
 function setLbl(on){lblOn=on;map.getContainer().classList.toggle('lb-off',!on);document.getElementById('lbl').setAttribute('aria-pressed',on);
   try{localStorage.setItem('ui:lbl',on?'on':'off')}catch(e){} scheduleDeclutter()}
-document.getElementById('lbl').onclick=()=>{setLbl(!lblOn);toast(lblOn?(map.getZoom()<LABEL_Z?'さらに拡大すると届出の文字が出ます':'届出の文字を表示します'):'届出の文字を隠しました（赤い枠は残ります）')};
+document.getElementById('lbl').onclick=()=>{setLbl(!lblOn);toast(lblOn?(map.getZoom()<LABEL_Z?'さらに拡大するとメモの文字が出ます':'メモの文字を表示します'):'メモの文字を隠しました（伐採届の赤い枠は残ります）')};
 setLbl(lblOn);
 let bt;
 function bDelRow(){ // 伐採届の削除ボタン（記録があるときだけ）
   const row=document.getElementById('b-delrow');row.replaceChildren();
   if(!selected||!bassaiRaw(selected.feature.properties)){row.hidden=true;return}row.hidden=false;
   const b=document.createElement('button');b.type='button';b.className='bdelbtn';b.textContent='この伐採届を削除';
-  b.onclick=()=>{row.replaceChildren();const q=document.createElement('span');q.textContent='文字・受理日・伐採方法・期間をすべて削除しますか？';
+  b.onclick=()=>{row.replaceChildren();const q=document.createElement('span');q.textContent='受理日・伐採方法・期間をすべて削除しますか？';
     const y=document.createElement('button');y.type='button';y.className='bdelbtn solid';y.textContent='削除する';
     y.onclick=()=>{const layer=selected;if(!layer)return;clearTimeout(bt);
       if(!store.set(keyOf(layer.feature.properties),'','bassai')){toast('削除できませんでした');return}
@@ -385,13 +399,12 @@ function bDelRow(){ // 伐採届の削除ボタン（記録があるときだけ
     row.append(q,y,n)};
   row.append(b);
 }
-BF.forEach(k=>document.getElementById('b-'+k).addEventListener(k==='label'?'input':'change',()=>{
+BF.forEach(k=>document.getElementById('b-'+k).addEventListener('change',()=>{
   clearTimeout(bt);const layer=selected,key=currentKey;if(!layer)return;
   bt=setTimeout(()=>{
     const o={};BF.forEach(f=>{const v=document.getElementById('b-'+f).value.trim();if(v)o[f]=v});
     const ok=store.set(key,Object.keys(o).length?JSON.stringify(o):'','bassai');
     if(!ok){toast('伐採届を保存できませんでした（ブラウザの設定を確認してください）');return}
-    if(!o.label&&Object.keys(o).length)toast('地図に出すには「表示する文字」を入れてください');
     applyLabel(layer);parcels.resetStyle(layer);if(selected===layer)layer.setStyle(styleFor(layer.feature));updateDots();bDelRow();
   },400);
 }));
@@ -603,6 +616,7 @@ function openSheet(layer){
   const b=bassaiRaw(p)||{};
   BF.forEach(k=>document.getElementById('b-'+k).value=b[k]||'');bDelRow();
   document.getElementById('memo').value=store.get(currentKey);
+  document.getElementById('m-label').value=mlabelOf(p);
   document.getElementById('saved').textContent='この端末に保存されます';
   const sh=document.getElementById('sheet');sh.hidden=false;setMin(false);
   updateDots();setTab(curTab);fitMemo();
@@ -610,6 +624,8 @@ function openSheet(layer){
 document.getElementById('s-close').onclick=()=>{document.getElementById('sheet').hidden=true;if(selected){const s=selected;selected=null;parcels.resetStyle(s)}};
 let ct;document.getElementById('chiseki').addEventListener('input',e=>{updateRatio();clearTimeout(ct);const k=currentKey,v=e.target.value.trim();
   ct=setTimeout(()=>{if(!store.set(k,v,'chiseki'))toast('地積を保存できませんでした（ブラウザの設定を確認してください）')},500)});
+let lt2;document.getElementById('m-label').addEventListener('input',e=>{clearTimeout(lt2);const layer=selected,k=currentKey,v=e.target.value.trim();if(!layer)return;
+  lt2=setTimeout(()=>{if(!store.set(k,v,'mlabel')){toast('保存できませんでした（ブラウザの設定を確認してください）');return}applyLabel(layer);updateDots()},400)});
 let mt;document.getElementById('memo').addEventListener('input',e=>{clearTimeout(mt);const k=currentKey,v=e.target.value;
   mt=setTimeout(()=>{document.getElementById('saved').textContent=store.set(k,v)?'保存しました':'保存できませんでした（ブラウザの設定を確認してください）';updateDots()},500)});
 document.getElementById('memo').addEventListener('input',fitMemo);
@@ -686,7 +702,7 @@ function fitMemo(){const t=document.getElementById('memo');t.style.height='auto'
 function updateDots(){if(!selected)return;const p=selected.feature.properties;
   document.getElementById('dot-bassai').hidden=!bassaiRaw(p);
   document.getElementById('dot-rireki').hidden=!rkGet(keyOf(p)).length;
-  document.getElementById('dot-memo').hidden=!store.get(keyOf(p))}
+  document.getElementById('dot-memo').hidden=!(store.get(keyOf(p))||mlabelOf(p))}
 
 // ---- 地番データ：大字ごとに、画面に入ったときだけ読み込む ----
 const index=[];let districts=[];const loading={};
@@ -783,9 +799,9 @@ btn.onclick=()=>{
 };
 
 // ---- 記録の受け渡し（メモ・地積・伐採届をファイルで別の端末へ） ----
-const REC_NS=['memo','chiseki','bassai','rireki'];
+const REC_NS=['memo','mlabel','chiseki','bassai','rireki'];
 function collectRecords(){const items={};try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(REC_NS.some(n=>k.startsWith(n+':')))items[k]=localStorage.getItem(k)}}catch(e){}return items}
-function recSummary(items){const c={memo:0,chiseki:0,bassai:0,rireki:0};Object.entries(items).forEach(([k,v])=>{const n=k.split(':')[0];if(n==='rireki'){try{c.rireki+=JSON.parse(v).length}catch(e){}}else if(n in c)c[n]++});return `メモ ${c.memo}件・地積 ${c.chiseki}件・伐採届 ${c.bassai}件・施業履歴 ${c.rireki}件`}
+function recSummary(items){const c={memo:0,mlabel:0,chiseki:0,bassai:0,rireki:0};Object.entries(items).forEach(([k,v])=>{const n=k.split(':')[0];if(n==='rireki'){try{c.rireki+=JSON.parse(v).length}catch(e){}}else if(n in c)c[n]++});return `メモ表示 ${c.mlabel}件・メモ内部記録 ${c.memo}件・地積 ${c.chiseki}件・伐採届 ${c.bassai}件・施業履歴 ${c.rireki}件`}
 function recFile(){const items=collectRecords();const d=new Date();const stamp=d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'-'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0');
   const body=JSON.stringify({app:'kinko-forest',kind:'records',version:1,exportedAt:d.toISOString(),items},null,1);
   return {file:new File([body],`kinko-kiroku-${stamp}.json`,{type:'application/json'}),txt:new File([body],`kinko-kiroku-${stamp}.txt`,{type:'text/plain'}),count:Object.keys(items).length,items}}
@@ -822,6 +838,7 @@ document.getElementById('rec-file').addEventListener('change',async e=>{
         if(ch){try{localStorage.setItem(k,JSON.stringify(mine))}catch(_){throw new Error('この端末に保存できませんでした（空き容量を確認してください）')}}
         continue}
       if(cur[k]===v)continue; if(k in cur)upd++;else add++; try{localStorage.setItem(k,v)}catch(_){throw new Error('この端末に保存できませんでした（空き容量を確認してください）')}}
+    migrateLabels();
     if(parcels){parcels.eachLayer(l=>{applyLabel(l)});parcels.setStyle(styleFor)}
     if(selected)openSheet(selected);
     document.getElementById('rp-sum').textContent='この端末の記録：'+recSummary(collectRecords());
