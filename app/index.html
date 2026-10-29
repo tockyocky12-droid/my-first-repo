@@ -241,7 +241,7 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
       <p>受け取ったファイル（kinko-kiroku-○○.txt または .json）を選びます。同じ地番の記録は、ファイルの内容で上書きします。この端末にしかない記録は消えません。</p>
       <div class="rp-btns"><span class="fwrap pwrap"><span class="pbtn">ファイルを選んで取り込む</span><input id="rec-file" class="fover" type="file" accept=".json,.txt,application/json,text/plain" aria-label="記録ファイルを選ぶ"></span></div>
     </div>
-    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-29b</span></p>
+    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-29c</span></p>
   </div>
 </div>
 <form id="search" autocomplete="off">
@@ -397,7 +397,8 @@ function declutter(){
   const c=map.getContainer();c.classList.toggle('lz-low',map.getZoom()<LABEL_Z);
   if(map.getZoom()<LABEL_Z||c.classList.contains('lb-off'))return;
   const items=[];
-  parcels&&parcels.eachLayer(l=>{const t=l.getTooltip&&l.getTooltip();if(!t||!t.getElement())return;
+  const each=fn=>{parcels&&parcels.eachLayer(fn);kkLayer&&kkLayer.eachLayer(fn)};
+  each(l=>{const t=l.getTooltip&&l.getTooltip();if(!t||!t.getElement())return;
     const b=bassaiOf(l.feature.properties);items.push({el:t.getElement(),pri:b?(isDone(b)?1:0):2,d:(b&&b.date)||''})});
   items.sort((a,b)=>(a.pri-b.pri)||(b.d.localeCompare(a.d))); // 伐採期間中の届出→終了した届出→そのほかのメモ
   const placed=[];
@@ -450,7 +451,11 @@ function updateRatio(){
 const pick=(p,keys)=>{for(const k of keys){if(p[k]!=null&&p[k]!=='')return String(p[k])}return''};
 const chibanOf=p=>pick(p,['地番','chiban','CHIBAN']);
 const oazaOf=p=>[pick(p,['大字名','oaza','OAZA']),pick(p,['丁目名','chome']),pick(p,['小字名','koaza'])].filter(Boolean).join(' ');
-const keyOf=p=>[pick(p,['筆ID','fude_id','id']),oazaOf(p),chibanOf(p)].join('|');
+const keyOf=p=>p.__kk?'kk|'+(p.n||''):[pick(p,['筆ID','fude_id','id']),oazaOf(p),chibanOf(p)].join('|');
+// 選んだ区画が国有林か民有林（地番）かで、色の付け方と戻し方を分ける
+const isKK=l=>!!(l&&l.feature&&l.feature.properties&&l.feature.properties.__kk);
+const styleOf=l=>isKK(l)?kkStyle(l.feature):styleFor(l.feature);
+function resetL(l){if(isKK(l)){if(kkLayer)kkLayer.resetStyle(l)}else parcels.resetStyle(l)}
 
 function areaM2(layer){ // 球面上の多角形面積（概算）
   const R=6378137,rad=Math.PI/180;let total=0;
@@ -583,6 +588,27 @@ function setTint(t){
 }
 ['none','species','age','rireki'].forEach(k=>document.getElementById('t-'+k).onclick=()=>setTint(k));
 
+function renderKK(p){
+  const box=document.getElementById('s-forest');box.replaceChildren();
+  const ttl=document.createElement('div');ttl.className='secttl';ttl.textContent='国有林';box.append(ttl);
+  const s=document.createElement('div');s.className='fr';
+  const hh=document.createElement('h3');hh.append('国有林 '+kkLin(p.n));
+  if(p.ho){const c=document.createElement('span');c.className='chip ho';c.textContent=kkHo(p.ho);hh.append(c)}
+  s.append(hh);
+  const rows=[];
+  if(p.ha!=null)rows.push(['面積',p.ha+' ha']);
+  if(p.rs)rows.push(['林種',`${KK_RS[p.rs]||p.rs}（${p.rs}）`]);
+  (p.sp||[]).forEach((x,i)=>rows.push([(p.sp.length>1?`樹種${i+1}`:'樹種'),`${x[0]==='他Ｌ'?'その他広葉樹（他Ｌ）':x[0]}${x[1]?`　${x[1]}年生（${Math.ceil(Number(x[1])/5)}齢級）`:''}`]));
+  if(p.vol!=null)rows.push(['材積',Number(p.vol).toLocaleString()+' m³']);
+  if(p.kt)rows.push(['機能類型',p.kt]);
+  if(p.kn)rows.push(['国有林名',p.kn]);
+  if(p.tan)rows.push(['担当区',p.tan]);
+  rows.push(['管理','大隅森林管理署']);
+  const dl=document.createElement('dl');
+  rows.forEach(([k,v])=>{const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=v;dl.append(dt,dd)});
+  s.append(dl);box.append(s);
+  const cr=document.createElement('div');cr.className='credit';cr.textContent='出典：国土数値情報（国有林野データ）（国土交通省）を加工して作成';box.append(cr);
+}
 function renderForest(p){
   const box=document.getElementById('s-forest');box.replaceChildren();
   const recs=forestOf(p);
@@ -626,8 +652,18 @@ function renderForest(p){
   rl.append(w,cnt);box.append(rl);
 }
 function openSheet(layer){
-  const prev=selected;selected=layer;if(prev)parcels.resetStyle(prev);layer.setStyle(styleFor(layer.feature));layer.bringToFront();
+  const prev=selected;selected=layer;if(prev)resetL(prev);layer.setStyle(styleOf(layer));layer.bringToFront();
   const p=layer.feature.properties;currentKey=keyOf(p);
+  const kk=!!p.__kk;
+  document.getElementById('tab-forest').firstChild.textContent=kk?'国有林':'森林簿';
+  document.getElementById('tab-bassai').hidden=kk;
+  document.querySelector('#sheet .areas').hidden=kk;
+  document.querySelector('#sheet .mapinfo').hidden=kk;
+  if(kk){
+    document.getElementById('s-chiban').textContent=kkLin(p.n);
+    document.getElementById('s-oaza').textContent=['国有林',p.kn,p.tan&&`（${p.tan}担当区）`].filter(Boolean).join(' ');
+    renderKK(p);
+  }else{
   document.getElementById('s-chiban').textContent=(chibanOf(p)||'地番不明')+' 番';
   const fr=forestOf(p),az=fr&&[...new Set(fr.map(r=>r.az).filter(Boolean))].join('・');
   document.getElementById('s-oaza').textContent=[oazaOf(p),az].filter(Boolean).join(' ');
@@ -640,16 +676,17 @@ function openSheet(layer){
   const dl=document.getElementById('s-info');dl.replaceChildren();
   rows.forEach(([k,v])=>{const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=v;dl.append(dt,dd)});
   renderForest(p);
-  rkClose();renderRireki();
   const b=bassaiRaw(p)||{};
   BF.forEach(k=>document.getElementById('b-'+k).value=b[k]||'');bDelRow();
+  }
+  rkClose();renderRireki();
   document.getElementById('memo').value=store.get(currentKey);
   document.getElementById('m-label').value=mlabelOf(p);
   document.getElementById('saved').textContent='この端末に保存されます';
   const sh=document.getElementById('sheet');sh.hidden=false;setMin(false);
-  updateDots();setTab(curTab);fitMemo();
+  updateDots();setTab(kk&&curTab==='bassai'?'forest':curTab);fitMemo();
 }
-document.getElementById('s-close').onclick=()=>{document.getElementById('sheet').hidden=true;if(selected){const s=selected;selected=null;parcels.resetStyle(s)}};
+document.getElementById('s-close').onclick=()=>{document.getElementById('sheet').hidden=true;if(selected){const s=selected;selected=null;resetL(s)}};
 let ct;document.getElementById('chiseki').addEventListener('input',e=>{updateRatio();clearTimeout(ct);const k=currentKey,v=e.target.value.trim();
   ct=setTimeout(()=>{if(!store.set(k,v,'chiseki'))toast('地積を保存できませんでした（ブラウザの設定を確認してください）')},500)});
 let lt2;document.getElementById('m-label').addEventListener('input',e=>{clearTimeout(lt2);const layer=selected,k=currentKey,v=e.target.value.trim();if(!layer)return;
@@ -751,26 +788,15 @@ function kkTint(p){
   if(tint==='age'&&s[1]){const k=Math.ceil(Number(s[1])/5);if(k>0)return AGES.find(x=>x[2](k))[1]}
   return null;
 }
-function kkStyle(f){const c=(tint==='species'||tint==='age')?kkTint(f.properties):null;
+function kkStyle(f){const c=(tint==='species'||tint==='age')?kkTint(f.properties):tint==='rireki'?rirekiColor(f.properties):null;
+  if(selected&&selected.feature===f)return{color:'#facc15',weight:3,opacity:1,dashArray:null,fillColor:c||'#facc15',fillOpacity:c?.75:.25};
   return c?{color:'#0e7490',weight:1,opacity:.8,fillColor:c,fillOpacity:.55}:{color:'#0e7490',weight:1.2,opacity:.8,dashArray:'4 3',fillColor:'#0e7490',fillOpacity:.07}}
-function kkPopup(p){
-  const d=document.createElement('div');d.className='kkpop';
-  const hd=document.createElement('div');hd.className='kkh';const b=document.createElement('span');b.className='kkb';b.textContent='国有林';hd.append(b,document.createTextNode(kkLin(p.n)));d.append(hd);
-  const t=document.createElement('table');const row=(k,v)=>{if(!v)return;const tr=document.createElement('tr');const a=document.createElement('td');a.textContent=k;const c=document.createElement('td');c.textContent=v;tr.append(a,c);t.append(tr)};
-  row('国有林名',[p.kn,p.tan&&`（${p.tan}担当区）`].filter(Boolean).join(''));
-  row('林種',p.rs?`${KK_RS[p.rs]||p.rs}（${p.rs}）`:'');
-  (p.sp||[]).forEach((s,i)=>row(p.sp.length>1?`樹種${i+1}`:'樹種',`${s[0]==='他Ｌ'?'その他広葉樹（他Ｌ）':s[0]}${s[1]?`　${s[1]}年生`:''}`));
-  row('面積',p.ha!=null?p.ha+' ha':'');row('材積',p.vol!=null?Number(p.vol).toLocaleString()+' m³':'');
-  row('機能類型',p.kt);row('保安林',kkHo(p.ho));d.append(t);
-  const s=document.createElement('div');s.className='src';s.textContent='出典：国土数値情報（国有林野データ）（国土交通省）を加工して作成';d.append(s);
-  return d;
-}
 function kkLoad(){
   if(kkLoading)return kkLoading;
   return kkLoading=fetch('kokuyu/index.json').then(r=>r.json()).then(m=>Promise.all(['units','roads'].map(n=>fetch(`kokuyu/${n}.geojson?v=${m.v}`).then(r=>r.json()))))
     .then(([u,rd])=>{
       kkRoads=L.geoJSON(rd,{style:{color:'#b45309',weight:2,opacity:.85},interactive:false});
-      kkLayer=L.geoJSON(u,{style:kkStyle,onEachFeature:(f,l)=>l.on('click',e=>{L.popup({maxWidth:300}).setLatLng(e.latlng).setContent(kkPopup(f.properties)).openOn(map)})});
+      kkLayer=L.geoJSON(u,{style:kkStyle,onEachFeature:(f,l)=>{f.properties.__kk=true;l.on('click',()=>openSheet(l));applyLabel(l)}});
       map.attributionControl.addAttribution('国有林：国土数値情報（国有林野データ）（国土交通省）を加工');
       kkApply();
     }).catch(()=>{kkLoading=null;toast('国有林のデータを読み込めませんでした')});
