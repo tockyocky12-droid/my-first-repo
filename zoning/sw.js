@@ -1,5 +1,5 @@
 // 錦江町森林ゾーニング：オフラインでも開けるようにするための仕組み（地番・国有林のデータは森林管理システムのものを使う）
-const VER='z7';
+const VER='z8';
 // この仕組みが置かれたフォルダ（例：/my-first-repo/app/）。町ごとのフォルダで同じファイルを使う
 const BASE=new URL(self.registration.scope).pathname;
 const PFX='zoning';
