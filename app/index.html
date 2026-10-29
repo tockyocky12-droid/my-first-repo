@@ -608,7 +608,7 @@ function renderRireki(){
     const sub=[e.jigyo,e.who].filter(Boolean).join('・');if(sub){const l2=document.createElement('div');l2.className='l2';l2.textContent=sub;it.append(l2)}
     if(e.note){const nt=document.createElement('div');nt.className='nt';nt.textContent=e.note;it.append(nt)}
     const acts=document.createElement('div');acts.className='acts';
-    const ed=document.createElement('button');ed.type='button';ed.textContent='直す';ed.onclick=()=>rkOpen(e);
+    const ed=document.createElement('button');ed.type='button';ed.textContent='修正';ed.onclick=()=>rkOpen(e);
     const del=document.createElement('button');del.type='button';del.className='del';del.textContent='削除';
     del.onclick=()=>{ // 確認は画面の中で行う
       acts.replaceChildren();const q=document.createElement('span');q.className='l2';q.textContent='この記録を削除しますか？';
@@ -641,7 +641,7 @@ document.getElementById('rk-form').addEventListener('submit',ev=>{
   const e={id:rkEdit||('r'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)),date:v('date'),work:v('work'),area,jigyo:v('jigyo'),who:v('who'),note:v('note'),upd:new Date().toISOString()};
   const i=list.findIndex(x=>x.id===e.id);if(i>=0)list[i]=e;else list.push(e);
   if(!rkSet(k,list)){toast('保存できませんでした（ブラウザの設定を確認してください）');return}
-  const was=rkEdit;rkClose();renderRireki();updateDots();toast(was?'施業履歴を直しました':'施業履歴を記録しました');
+  const was=rkEdit;rkClose();renderRireki();updateDots();toast(was?'施業履歴を修正しました':'施業履歴を記録しました');
 });
 // ---- カードのタブと最小化 ----
 const TABS=['forest','rireki','bassai','memo'];
