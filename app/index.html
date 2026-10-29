@@ -250,7 +250,7 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
       <p>受け取った記録ファイル（.txt または .json）を選びます。同じ地番の記録は、ファイルの内容で上書きします。この端末にしかない記録は消えません。</p>
       <div class="rp-btns"><span class="fwrap pwrap"><span class="pbtn">ファイルを選んで取り込む</span><input id="rec-file" class="fover" type="file" accept=".json,.txt,application/json,text/plain" aria-label="記録ファイルを選ぶ"></span></div>
     </div>
-    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-29i</span></p>
+    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-29j</span></p>
   </div>
 </div>
 <form id="search" autocomplete="off">
@@ -370,7 +370,10 @@ const LS={_k:null,
   get length(){if(!this._k){this._k=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);
     if(CFG.ns?k.startsWith(CFG.ns):!/^[a-z0-9]+\//.test(k))this._k.push(CFG.ns?k.slice(CFG.ns.length):k)}}return this._k.length},
   key(i){if(!this._k)void this.length;return this._k[i]??null}};
-const map=L.map('map',{zoomControl:true,preferCanvas:true}).setView(CFG.center,13);
+// 前回見ていた場所と拡大率から始める（初めて開いたときは町全体）
+const savedView=(()=>{try{const v=JSON.parse(LS.getItem('ui:view')||'null');return v&&isFinite(v.lat)&&isFinite(v.lng)&&isFinite(v.z)?v:null}catch(e){return null}})();
+const map=L.map('map',{zoomControl:true,preferCanvas:true}).setView(savedView?[savedView.lat,savedView.lng]:CFG.center,savedView?savedView.z:13);
+let svT;map.on('moveend',()=>{clearTimeout(svT);svT=setTimeout(()=>{try{const c=map.getCenter();LS.setItem('ui:view',JSON.stringify({lat:+c.lat.toFixed(6),lng:+c.lng.toFixed(6),z:map.getZoom()}))}catch(e){}},500)});
 const gsiAttr='<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>';
 const std=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',{maxZoom:18,attribution:gsiAttr});
 const photo=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',{maxZoom:18,attribution:gsiAttr});
@@ -868,7 +871,7 @@ function refresh(){
 fetch('data/index.json').then(r=>{if(!r.ok)throw 0;return r.json()}).then(list=>{
   districts=list;
   const all=list.reduce((b,d)=>b.extend(bboxBounds(d.bbox)),L.latLngBounds([]));
-  map.fitBounds(all);
+  if(!savedView)map.fitBounds(all);
   map.attributionControl.addAttribution('地番：法務省 登記所備付地図データ（G空間情報センター、AIGID変換）／森林簿：鹿児島県');
   map.on('moveend',refresh);refresh();
   zoomHint();
