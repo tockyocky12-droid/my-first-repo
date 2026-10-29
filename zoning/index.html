@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>錦江町森林ゾーニング</title>
+<meta name="theme-color" content="#1f4e5a">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700&family=BIZ+UDGothic:wght@400;700&display=swap">
+<style>
+/* 地図が主役。下に「凡例＝集計表」、地番をタップすると同じ場所に地番カードが出る */
+:root{
+  --bg:#f2f5f5; --panel:#ffffff; --fg:#17262b; --muted:#5b6b70;
+  --accent:#1f4e5a; --accent-fg:#ffffff; --line:#d3dcde; --sel:#facc15;
+  --z-mokuzai:#2f8f46; --z-hozen:#3b82c4; --z-tennen:#c08a2b; --z-satoyama:#c2569b; --z-none:#9aa3a6;
+  --f-display:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",sans-serif;
+  --f-data:"BIZ UDGothic","Hiragino Sans","Yu Gothic",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#101719; --panel:#182225; --fg:#e4ecee; --muted:#97a6aa; --accent:#7fb8c6; --accent-fg:#0d1a1e; --line:#2b383c; color-scheme:dark;
+}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-display);font-size:15px;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:8px;padding-block:calc(env(safe-area-inset-top,0px) + 8px) 8px;
+  padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px));background:var(--panel);border-bottom:1px solid var(--line);z-index:1000}
+header h1{font-size:16px;margin:0;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header h1 small{font-weight:400;color:var(--muted);font-size:12px;margin-left:4px}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex:none}
+.seg button{border:0;background:transparent;color:var(--fg);font:inherit;font-size:13px;padding:6px 10px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg)}
+.hbtn{border:1px solid var(--line);background:transparent;color:var(--fg);font:inherit;font-size:13px;border-radius:8px;padding:6px 10px;cursor:pointer;flex:none}
+#bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px max(14px,env(safe-area-inset-right,0px)) 8px max(14px,env(safe-area-inset-left,0px));background:var(--panel);border-bottom:1px solid var(--line);z-index:1000;font-size:13px;color:var(--muted)}
+.fwrap{position:relative;display:inline-block;overflow:hidden;border-radius:8px}
+.fwrap .fbtn{display:inline-block}
+.fbtn{font:inherit;font-size:13px;padding:6px 12px;border-radius:8px;border:0;background:var(--accent);color:var(--accent-fg);white-space:nowrap}
+.fover{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:40px;z-index:2}
+.fwrap:focus-within .fbtn{outline:3px solid var(--sel);outline-offset:2px}
+#maparea{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
+#map{flex:1;min-height:0}
+#toast{position:fixed;left:50%;transform:translateX(-50%);top:130px;z-index:3000;background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;max-width:90%}
+/* 下のパネル（集計／地番カード） */
+#panel{background:var(--panel);border-top:1px solid var(--line);z-index:1000;max-height:46%;overflow:auto;
+  padding-block:10px calc(10px + env(safe-area-inset-bottom,0px));padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px))}
+.ptop{display:flex;align-items:baseline;gap:8px}
+.ptop h2{font-size:15px;margin:0;flex:1}
+.ptop .sub{font-size:12px;color:var(--muted)}
+.xbtn{border:0;background:transparent;color:var(--muted);font-size:22px;line-height:1;cursor:pointer;padding:0 4px}
+table.sum{width:100%;border-collapse:collapse;font-family:var(--f-data);font-size:13px;margin-top:6px;font-variant-numeric:tabular-nums}
+table.sum td{padding:5px 4px;border-top:1px solid var(--line)}
+table.sum td.n{text-align:right;white-space:nowrap}
+table.sum tr.tot td{font-weight:700}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px;border:1px solid rgba(0,0,0,.2)}
+.barc{height:6px;border-radius:3px;background:var(--line);overflow:hidden;min-width:40px}
+.barc i{display:block;height:100%}
+.note{font-size:12px;color:var(--muted);margin:6px 0 0;line-height:1.6}
+.empty{font-size:14px;line-height:1.7}
+/* 地番カード */
+.chip{display:inline-block;padding:2px 10px;border-radius:999px;color:#fff;font-size:13px;font-weight:700}
+.chip.man::after{content:"手直し";font-weight:400;font-size:11px;margin-left:6px;background:rgba(255,255,255,.25);padding:0 5px;border-radius:999px}
+.why{font-size:13px;color:var(--muted);margin:4px 0 8px}
+.ovr{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;margin:8px 0}
+.ovr select{font:inherit;font-size:14px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+table.sb{width:100%;border-collapse:collapse;font-size:12.5px;font-family:var(--f-data);font-variant-numeric:tabular-nums}
+table.sb th{font-weight:400;color:var(--muted);text-align:left;padding:4px 3px;border-bottom:1px solid var(--line)}
+table.sb td{padding:5px 3px;border-bottom:1px solid var(--line);vertical-align:top}
+table.sb td.n{text-align:right}
+.tw{overflow-x:auto}
+/* 条件パネル */
+#cond{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;overflow:auto;
+  padding:calc(env(safe-area-inset-top,0px) + 48px) max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px))}
+.card{background:var(--panel);border-radius:14px;padding:16px;max-width:520px;width:100%;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+.card h2{font-size:18px;margin:0}
+.rule{border-top:1px solid var(--line);padding:10px 0;font-size:14px;line-height:1.6}
+.rule .z{font-weight:700}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line);font-size:14px;line-height:1.5}
+.opt input{margin-top:4px;width:18px;height:18px;flex:none}
+.opt small{display:block;color:var(--muted);font-size:12px}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.pbtn{font:inherit;font-size:14px;padding:9px 14px;border-radius:8px;border:0;background:var(--accent);color:var(--accent-fg);cursor:pointer}
+.pbtn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+.credit{font-size:11px;color:var(--muted);margin-top:8px}
+:focus-visible{outline:3px solid var(--sel);outline-offset:2px}
+</style>
+</head>
+<body>
+<header>
+  <h1>錦江町森林ゾーニング</h1>
+  <div class="seg" role="group" aria-label="背景地図">
+    <button id="bm-std" aria-pressed="true">地図</button>
+    <button id="bm-photo" aria-pressed="false">写真</button>
+  </div>
+  <button id="cond-open" class="hbtn" type="button" aria-label="判定条件">条件</button>
+</header>
+<div id="bar">
+  <span>表示</span>
+  <div class="seg" role="group" aria-label="塗り分け">
+    <button id="v-zone" aria-pressed="true">ゾーン案</button>
+    <button id="v-plan" aria-pressed="false">現行計画の区分</button>
+  </div>
+  <span class="fwrap" id="fload-wrap"><span class="fbtn" id="fload">森林簿CSVを読み込む</span><input id="ffile" class="fover" type="file" multiple accept=".csv,text/csv,text/comma-separated-values,application/csv,application/vnd.ms-excel,text/plain" aria-label="森林簿CSVを選ぶ"></span>
+  <button id="export" class="hbtn" type="button" hidden>CSV書き出し</button>
+</div>
+<div id="maparea"><div id="map"></div></div>
+<section id="panel" aria-live="polite"></section>
+<div id="toast" hidden></div>
+
+<div id="cond" hidden>
+  <div class="card" role="dialog" aria-labelledby="c-ttl">
+    <div class="ptop"><h2 id="c-ttl">判定条件</h2><button class="xbtn" id="cond-close" type="button" aria-label="閉じる">×</button></div>
+    <p class="note">森林簿の小班ごとに、上から順に当てはめてゾーンを決めます。地番の色は、その地番の中で面積が一番大きいゾーンです。</p>
+    <div id="rules"></div>
+    <div class="opt"><input type="checkbox" id="o-hoan"><label for="o-hoan">保安林は「環境保全林」にする<small>保安林の人工林・伐採跡地を、木材生産林より優先して環境保全林に入れます</small></label></div>
+    <div class="opt"><input type="checkbox" id="o-plan"><label for="o-plan">現行計画の水源涵養・山地災害防止の区分は「環境保全林」にする<small>市町村森林整備計画の公益的機能別施業森林の区分を引き継ぎます</small></label></div>
+    <div class="opt"><input type="checkbox" id="o-sanchi"><label for="o-sanchi">山地災害防止が「高」の人工林は「環境保全林」にする<small>木材生産が「高」でも環境保全林に入れます。対象がかなり広くなります</small></label></div>
+    <div class="opt"><input type="checkbox" id="o-suigen"><label for="o-suigen">水源かん養が「高」の人工林は「環境保全林」にする</label></div>
+    <div class="opt"><input type="checkbox" id="o-kyu"><label for="o-kyu">木材生産林は <select id="o-kyuv" aria-label="齢級"></select> 以上の人工林に限る<small>若い人工林は、育つまで環境保全林として扱います</small></label></div>
+    <div class="btns"><button class="pbtn" id="cond-apply" type="button">この条件で判定する</button><button class="pbtn ghost" id="cond-reset" type="button">はじめの条件に戻す</button></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+// ===== ゾーンの定義 =====
+const ZONES=[
+  {k:'mokuzai',n:'木材生産林',d:'主伐・再造林を繰り返す人工林',c:'#2f8f46'},
+  {k:'hozen',n:'環境保全林',d:'針広混交林へ誘導・公益的機能を重視',c:'#3b82c4'},
+  {k:'tennen',n:'天然林保全',d:'天然林をそのまま守る',c:'#c08a2b'},
+  {k:'satoyama',n:'里山・竹林対策林',d:'竹林の整備・拡大防止',c:'#c2569b'},
+];
+const ZMAP=Object.fromEntries(ZONES.map(z=>[z.k,z]));
+const PLAN=[ // 現行の市町村森林整備計画（公益的機能別施業森林）
+  {m:'特に効率的',n:'木材等生産（特に効率的な施業が可能）',c:'#1b5e20'},
+  {m:'木材等生産',n:'木材等生産機能維持増進',c:'#7cc47f'},
+  {m:'水源涵養',n:'水源涵養機能維持増進',c:'#3b82c4'},
+  {m:'山地災害',n:'山地災害防止／土壌保全機能維持増進',c:'#8d6e63'},
+  {m:'快適環境',n:'快適環境形成機能維持増進',c:'#8e6cc4'},
+  {m:'保健',n:'保健機能維持増進',c:'#e07aa8'},
+];
+const planOf=s=>{if(!s)return null;
+  // 「…（特に効率的な施業が可能な森林を除く）」は一般の木材等生産に数える
+  if(s.includes('特に効率的')&&!s.includes('除く'))return PLAN[0];
+  return PLAN.slice(1).find(p=>s.includes(p.m))||null};
+const DEF={hoan:true,plan:true,sanchi:false,suigen:false,kyu:false,kyuv:10};
+let opts=Object.assign({},DEF);try{Object.assign(opts,JSON.parse(localStorage.getItem('zoning:opts')||'{}'))}catch(e){}
+
+// 判定：小班1件 → [ゾーン, 理由]
+function zoneOf(r){
+  const t=r.lt||'',f=r.fn||{};
+  if(t==='竹林')return['satoyama','竹林'];
+  if(t==='天然林')return['tennen','天然林'];
+  if(t==='人工林'||t==='伐採跡地'||t==='未立木地'){
+    if(opts.hoan&&r.ho)return['hozen',`${r.ho}保安林`];
+    const pl=planOf(r.plan);
+    if(opts.plan&&pl&&(pl.m==='水源涵養'||pl.m==='山地災害'))return['hozen','現行計画：'+pl.n.replace('機能維持増進','')];
+    if(t==='人工林'){
+      if(opts.sanchi&&f.sanchi==='高')return['hozen','山地災害防止「高」'];
+      if(opts.suigen&&f.suigen==='高')return['hozen','水源かん養「高」'];
+      if(f.mokuzai==='高'){
+        if(opts.kyu&&r.kyu!=null&&r.kyu<opts.kyuv)return['hozen',`木材生産「高」だが${r.kyu}齢級（${opts.kyuv}齢級未満）`];
+        return['mokuzai','木材生産「高」'];
+      }
+      return['hozen',`木材生産「${f.mokuzai||'—'}」`];
+    }
+    return f.mokuzai==='高'?['mokuzai',t+'（木材生産「高」・再造林）']:['hozen',t+`（木材生産「${f.mokuzai||'—'}」）`];
+  }
+  return['hozen',t||'林種不明'];
+}
+
+// ===== 地図 =====
+const map=L.map('map',{zoomControl:true,preferCanvas:true}).setView([31.215,130.83],12);
+const gsiAttr='<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地理院タイル</a>';
+const std=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png',{maxZoom:18,attribution:gsiAttr});
+const photo=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',{maxZoom:18,attribution:gsiAttr});
+std.addTo(map);
+map.attributionControl.addAttribution('地番：法務省 登記所備付地図データ（G空間情報センター、AIGID変換）／森林簿：鹿児島県');
+function setBase(p){(p?std:photo).remove();(p?photo:std).addTo(map);
+  document.getElementById('bm-std').setAttribute('aria-pressed',!p);document.getElementById('bm-photo').setAttribute('aria-pressed',p);restyle()}
+document.getElementById('bm-std').onclick=()=>setBase(false);
+document.getElementById('bm-photo').onclick=()=>setBase(true);
+const toastEl=document.getElementById('toast');let tt;
+function toast(t){toastEl.textContent=t;toastEl.hidden=false;clearTimeout(tt);tt=setTimeout(()=>toastEl.hidden=true,3200)}
+const nz=s=>String(s||'').normalize('NFKC').trim();
+const fmtHa=a=>a.toLocaleString(undefined,{minimumFractionDigits:1,maximumFractionDigits:1});
+
+// ===== 森林簿（各自のCSVを端末で読み込む。データは外へ送らない） =====
+let forest={};   // forest[大字][地番] = [小班...]
+let rowsAll=[];  // 全小班（集計用。地図と結び付かない小班も含む）
+const OAZA_ALIAS={'麓':'田代麓','川原':'田代川原'};
+function parseCSV(t){const rows=[];let row=[],f='',q=false;
+  for(let i=0;i<t.length;i++){const c=t[i];
+    if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+    else if(c==='"')q=true;else if(c===','){row.push(f);f=''}
+    else if(c==='\n'||c==='\r'){if(c==='\r'&&t[i+1]==='\n')i++;row.push(f);f='';if(row.length>1||row[0]!=='')rows.push(row);row=[]}
+    else f+=c}
+  if(f!==''||row.length){row.push(f);rows.push(row)}return rows}
+function buildRows(texts){
+  const out=[];const num=s=>{s=String(s||'').trim();return /^\d+(\.\d+)?$/.test(s)?Number(s):null};
+  for(const t of texts){const rows=parseCSV(t);if(!rows.length)continue;
+    const ix={};rows[0].forEach((h,i)=>ix[h.trim()]=i);
+    if(ix['地番']==null||ix['大字CD']==null)throw new Error('森林簿のCSVではないようです（「地番」「大字CD」の列がありません）');
+    const g=(r,k)=>ix[k]==null?'':String(r[ix[k]]||'').trim();const strip=s=>s.replace(/^0+(?=\d)/,'');
+    for(const r of rows.slice(1)){
+      const o=OAZA_ALIAS[g(r,'大字CD')]||g(r,'大字CD');if(!o)continue;
+      out.push({o,cb:nz(g(r,'地番')),town:g(r,'市町村CD'),
+        k:[strip(g(r,'林班')),nz(g(r,'準林班')),strip(g(r,'小班'))].filter(Boolean).join('-')+(g(r,'枝番')?'-'+g(r,'枝番'):''),
+        az:nz(g(r,'字名_カナ')),lt:g(r,'林種CD1'),sp:g(r,'樹種CD1'),age:num(g(r,'林齢1')),kyu:num(g(r,'齢級1')),a:num(g(r,'更正面積'))||0,v:num(g(r,'総蓄積_M3')),
+        ho:g(r,'保安林CD'),plan:g(r,'新公益的施業森林1CD'),own:g(r,'所有形態CD'),
+        fn:{mokuzai:g(r,'木材等生産CD'),suigen:g(r,'水源かん養CD'),sanchi:g(r,'山地災害防止CD'),seikatsu:g(r,'生活環境保全CD'),hoken:g(r,'保健文化CD')}});
+    }}
+  return out;
+}
+function indexRows(){forest={};for(const r of rowsAll){((forest[r.o]||(forest[r.o]={}))[r.cb]||(forest[r.o][r.cb]=[])).push(r)}}
+const idb={open(){return new Promise((ok,ng)=>{try{const q=indexedDB.open('kinko-zoning',1);q.onupgradeneeded=()=>q.result.createObjectStore('kv');q.onsuccess=()=>ok(q.result);q.onerror=()=>ng(q.error)}catch(e){ng(e)}})},
+  async get(k){const d=await this.open();return new Promise((ok,ng)=>{const q=d.transaction('kv').objectStore('kv').get(k);q.onsuccess=()=>ok(q.result);q.onerror=()=>ng(q.error)})},
+  async set(k,v){const d=await this.open();return new Promise((ok,ng)=>{const tx=d.transaction('kv','readwrite');tx.objectStore('kv').put(v,k);tx.oncomplete=()=>ok();tx.onerror=()=>ng(tx.error)})}};
+const TOWN={'田代麓':'田代町','田代川原':'田代町','神川':'大根占町','馬場':'大根占町','城元':'大根占町'};
+function towns(){return [...new Set(rowsAll.map(r=>TOWN[r.o]||r.o))]}
+function onForestLoaded(){
+  indexRows();
+  const miss=['田代町','大根占町'].filter(t=>!towns().includes(t));
+  document.getElementById('fload').textContent=!rowsAll.length?'森林簿CSVを読み込む':miss.length?`${miss.join('・')}のCSVを追加`:'森林簿を読み込み直す';
+  document.getElementById('fload-wrap').hidden=rowsAll.length>0&&!miss.length;
+  document.getElementById('export').hidden=!rowsAll.length;
+  restyle();showSummary();
+}
+document.getElementById('ffile').addEventListener('change',async e=>{
+  const files=[...e.target.files];e.target.value='';if(!files.length)return;toast('森林簿を読み込んでいます…');
+  try{
+    const texts=await Promise.all(files.map(async f=>{const b=await f.arrayBuffer();let t=new TextDecoder('utf-8').decode(b);if(!t.includes('地番'))t=new TextDecoder('shift_jis').decode(b);return t}));
+    const add=buildRows(texts);if(!add.length)throw new Error('読み込める行がありませんでした');
+    const newO=new Set(add.map(r=>r.o));rowsAll=rowsAll.filter(r=>!newO.has(r.o)).concat(add); // 同じ大字は入れ替え
+    onForestLoaded();
+    try{await idb.set('rows',rowsAll);toast(`森林簿 ${add.length.toLocaleString()} 小班を読み込みました（この端末に保存）`)}
+    catch(_){toast(`森林簿 ${add.length.toLocaleString()} 小班を読み込みました。端末に保存できなかったので、次回また読み込んでください`)}
+  }catch(err){toast(err.message||'森林簿を読み込めませんでした')}
+});
+
+// ===== 手直し（地番ごと、端末に保存） =====
+const store={get(k){try{return localStorage.getItem('zoning:ovr:'+k)||''}catch(e){return''}},set(k,v){try{v?localStorage.setItem('zoning:ovr:'+k,v):localStorage.removeItem('zoning:ovr:'+k);return true}catch(e){return false}}};
+const pkey=p=>[p['大字名']||'',p['小字名']||'',p['地番']||''].join('|');
+
+// ===== 地番と色分け =====
+let view='zone',parcels=null,selected=null,districts=[];const loading={};
+function parcelInfo(p){
+  const recs=(forest[p['大字名']]||{})[nz(p['地番'])]||null;if(!recs)return null;
+  const by={};recs.forEach(r=>{const z=zoneOf(r)[0];by[z]=(by[z]||0)+(r.a||0)});
+  const auto=Object.keys(by).sort((a,b)=>by[b]-by[a])[0];
+  const man=store.get(pkey(p));
+  const pa={};recs.forEach(r=>{const pl=planOf(r.plan);if(pl)pa[pl.m]=(pa[pl.m]||0)+(r.a||0)});
+  const plan=Object.keys(pa).sort((a,b)=>pa[b]-pa[a])[0];
+  return {recs,auto,man:ZMAP[man]?man:'',zone:ZMAP[man]?man:auto,plan:PLAN.find(x=>x.m===plan)||null};
+}
+const isPhoto=()=>map.hasLayer(photo);
+function styleFor(f){
+  const info=parcelInfo(f.properties),sel=selected&&selected.feature===f;
+  const col=info?(view==='zone'?ZMAP[info.zone].c:(info.plan?info.plan.c:null)):null;
+  const line=sel?'#facc15':(isPhoto()?'#fde68a':'#6b4f3a');
+  if(!col)return{color:line,weight:sel?3:.5,opacity:col||sel?1:.35,fillOpacity:sel?.2:0,fillColor:'#facc15'};
+  return{color:line,weight:sel?3:.5,opacity:sel?1:.5,fillColor:col,fillOpacity:sel?.85:.62};
+}
+function restyle(){if(parcels)parcels.setStyle(styleFor)}
+parcels=L.geoJSON(null,{style:styleFor,onEachFeature:(f,l)=>l.on('click',()=>openParcel(l))}).addTo(map);
+function bb(b){return L.latLngBounds([b[1],b[0]],[b[3],b[2]])}
+function loadDistrict(d){if(loading[d.file])return loading[d.file];
+  return loading[d.file]=fetch('../app/data/'+d.file+(d.v?'?v='+d.v:'')).then(r=>{if(!r.ok)throw 0;return r.json()})
+    .then(gj=>{parcels.addData(gj)}).catch(()=>{delete loading[d.file];toast(`${d.oaza} の地番を読み込めませんでした`)})}
+const MINZ=13;
+function refresh(){const z=map.getZoom(),vb=map.getBounds();
+  if(z<MINZ){if(map.hasLayer(parcels))map.removeLayer(parcels);return}
+  if(!map.hasLayer(parcels))parcels.addTo(map);
+  districts.forEach(d=>{if(vb.intersects(bb(d.bbox)))loadDistrict(d)})}
+fetch('../app/data/index.json').then(r=>r.json()).then(list=>{districts=list.filter(d=>d.oaza!=='その他');
+  map.fitBounds(districts.reduce((b,d)=>b.extend(bb(d.bbox)),L.latLngBounds([])));map.on('moveend',refresh);refresh()})
+  .catch(()=>toast('地番データを読み込めませんでした。通信状態を確認してください'));
+function setView(v){view=v;document.getElementById('v-zone').setAttribute('aria-pressed',v==='zone');document.getElementById('v-plan').setAttribute('aria-pressed',v==='plan');
+  restyle();if(!selected)showSummary()}
+document.getElementById('v-zone').onclick=()=>setView('zone');
+document.getElementById('v-plan').onclick=()=>setView('plan');
+
+// ===== 集計（小班の面積で計算。地図と結び付かない小班も含む） =====
+const panel=document.getElementById('panel');
+function el(tag,cls,txt){const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e}
+// 手直しは地番単位なので、地番キー（大字＋地番）で引けるようにまとめる
+function ovrMap(){const ovr={};try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('zoning:ovr:')){const [o,,cb]=k.slice(11).split('|');ovr[o+'|'+nz(cb)]=localStorage.getItem(k)}}}catch(e){}return ovr}
+function summarize(){
+  const ovr=ovrMap();
+  const res={};let total=0,manual=0;
+  for(const r of rowsAll){let z=zoneOf(r)[0];const m=ovr[r.o+'|'+r.cb];if(ZMAP[m]){if(m!==z)manual+=r.a;z=m}
+    res[z]=(res[z]||0)+r.a;total+=r.a}
+  return{res,total,manual};
+}
+function showSummary(){
+  selected=null;restyle();panel.replaceChildren();
+  if(!rowsAll.length){
+    const d=el('div','empty');
+    d.append('森林簿を読み込むと、ゾーン案で地図を塗り分け、ゾーン別の面積をここに集計します。県のサイトから、錦江町分の森林簿CSV（田代町・大根占町）をダウンロードして、上の「森林簿CSVを読み込む」から選んでください。');
+    const a=el('a',null,'県のダウンロードページ');a.href='https://www.pref.kagoshima.jp/ad12/shinrin-open.html';a.target='_blank';a.rel='noopener';
+    const p=el('p','note');p.append(a);panel.append(d,p);return}
+  const top=el('div','ptop');
+  if(view==='zone'){
+    const {res,total,manual}=summarize();
+    top.append(el("h2",null,"ゾーン別の面積（試案）"),el('span','sub',`森林簿の面積（ha）・${towns().join('・')}`));panel.append(top);
+    const tb=el('table','sum');
+    ZONES.forEach(z=>{const a=res[z.k]||0,tr=el('tr');
+      const t1=el('td');const s=el('span','sw');s.style.background=z.c;t1.append(s,z.n);
+      const t2=el('td','n',fmtHa(a));const t3=el('td','n',total?(a/total*100).toFixed(1)+'%':'—');
+      const t4=el('td');const bc=el('div','barc');const bi=el('i');bi.style.width=(total?a/total*100:0)+'%';bi.style.background=z.c;bc.append(bi);t4.append(bc);t4.style.width='30%';
+      tr.append(t1,t2,t3,t4);tb.append(tr)});
+    const tr=el('tr','tot');tr.append(el('td',null,'合計'),el('td','n',fmtHa(total)),el('td','n','100%'),el('td'));tb.append(tr);panel.append(tb);
+    panel.append(el('p','note',`地番をタップすると、判定の理由と小班の内訳が見られます。${manual?`手直しで変わった面積：${fmtHa(manual)} ha。`:''}地図の色は地番単位、集計は小班単位です。`));
+  }else{
+    const pa={};let total=0,none=0;rowsAll.forEach(r=>{const p=planOf(r.plan);total+=r.a;if(p)pa[p.m]=(pa[p.m]||0)+r.a;else none+=r.a});
+    top.append(el('h2',null,'現行計画の区分'),el('span','sub','公益的機能別施業森林（ha）'));panel.append(top);
+    const tb=el('table','sum');
+    PLAN.forEach(p=>{const a=pa[p.m]||0;if(!a)return;const tr=el('tr');const t1=el('td');const s=el('span','sw');s.style.background=p.c;t1.append(s,p.n);
+      tr.append(t1,el('td','n',fmtHa(a)),el('td','n',(a/total*100).toFixed(1)+'%'));tb.append(tr)});
+    if(none){const tr=el('tr');tr.append(el('td',null,'区分なし'),el('td','n',fmtHa(none)),el('td','n',(none/total*100).toFixed(1)+'%'));tb.append(tr)}
+    panel.append(tb,el('p','note','森林簿に記載された、市町村森林整備計画の区分です。ゾーン案と見比べるのに使います。'));
+  }
+  panel.append(el('p','credit','この成果品は、鹿児島県森林資源情報データ（ダウンロード）から作成したものである'));
+}
+
+// ===== 地番カード =====
+function openParcel(l){
+  const p=l.feature.properties;const info=parcelInfo(p);
+  const prev=selected;selected=l;if(prev)parcels.resetStyle(prev);l.setStyle(styleFor(l.feature));l.bringToFront();
+  panel.replaceChildren();panel.scrollTop=0;
+  const top=el('div','ptop');const h=el('h2',null,`${p['地番']} 番`);h.style.fontSize='20px';h.style.fontFamily='var(--f-data)';
+  const x=el('button','xbtn','×');x.type='button';x.setAttribute('aria-label','集計に戻る');x.onclick=showSummary;
+  const az=info?[...new Set(info.recs.map(r=>r.az).filter(Boolean))].join('・'):'';
+  top.append(h,el('span','sub',[p['大字名'],az].filter(Boolean).join(' ')),x);panel.append(top);
+  if(!rowsAll.length){panel.append(el('p','note','森林簿が読み込まれていません。'));return}
+  if(!info){panel.append(el('p','note','この地番は森林簿に載っていません（森林以外の土地か、地番の表し方が違う可能性があります）。'));return}
+  const z=ZMAP[info.zone];const chip=el('span','chip'+(info.man?' man':''),z.n);chip.style.background=z.c;
+  const row=el('div');row.style.marginTop='8px';row.append(chip);
+  if(info.plan){const pc=el('span','note',`　現行計画：${info.plan.n}`);row.append(pc)}
+  panel.append(row);
+  panel.append(el('p','why',info.man?`自動判定は「${ZMAP[info.auto].n}」でしたが、手直しで「${z.n}」にしています。`:`自動判定：${z.d}`));
+  // 手直し
+  const ov=el('div','ovr');const lb=el('label',null,'ゾーンを手直し');lb.htmlFor='ovr';
+  const sel=document.createElement('select');sel.id='ovr';
+  const o0=el('option',null,`自動判定のまま（${ZMAP[info.auto].n}）`);o0.value='';sel.append(o0);
+  ZONES.forEach(zz=>{const o=el('option',null,zz.n);o.value=zz.k;sel.append(o)});sel.value=info.man;
+  sel.onchange=()=>{if(!store.set(pkey(p),sel.value)){toast('保存できませんでした');return}openParcel(l);toast(sel.value?'手直しを保存しました':'自動判定に戻しました')};
+  ov.append(lb,sel);panel.append(ov);
+  // 小班の内訳
+  const tw=el('div','tw');const tb=el('table','sb');const hd=el('tr');['林小班','林種・樹種','齢級','面積ha','判定（理由）'].forEach(t=>hd.append(el('th',null,t)));tb.append(hd);
+  info.recs.forEach(r=>{const [zz,why]=zoneOf(r);const tr=el('tr');
+    const zc=el('td');const s=el('span','sw');s.style.background=ZMAP[zz].c;zc.append(s,ZMAP[zz].n);zc.append(el('div','note',why));
+    tr.append(el('td',null,r.k),el('td',null,[r.lt,r.sp].filter(Boolean).join('・')),el('td','n',r.kyu!=null?String(r.kyu):'—'),el('td','n',r.a.toFixed(2)),zc);tb.append(tr)});
+  tw.append(tb);panel.append(tw);
+  const f=info.recs[0].fn;panel.append(el('p','note',`機能区分（1件目の小班）：木材生産「${f.mokuzai||'—'}」・水源かん養「${f.suigen||'—'}」・山地災害防止「${f.sanchi||'—'}」`));
+}
+
+// ===== 判定条件 =====
+const condEl=document.getElementById('cond');
+function ruleText(){
+  const L=[];
+  L.push(['satoyama','林種が竹林']);L.push(['tennen','林種が天然林']);
+  if(opts.hoan)L.push(['hozen','保安林（人工林・伐採跡地）']);
+  if(opts.plan)L.push(['hozen','現行計画が水源涵養・山地災害防止']);
+  if(opts.sanchi)L.push(['hozen','山地災害防止が「高」の人工林']);
+  if(opts.suigen)L.push(['hozen','水源かん養が「高」の人工林']);
+  L.push(['mokuzai',`木材生産が「高」の人工林${opts.kyu?`（${opts.kyuv}齢級以上）`:''}・伐採跡地`]);
+  L.push(['hozen','上のどれにも当たらない人工林・伐採跡地など']);
+  return L;
+}
+function fillCond(){
+  const box=document.getElementById('rules');box.replaceChildren();
+  ruleText().forEach(([z,t],i)=>{const d=el('div','rule');const s=el('span','sw');s.style.background=ZMAP[z].c;const zn=el('span','z',ZMAP[z].n);d.append(`${i+1}. ${t} → `,s,zn);box.append(d)});
+  ['hoan','plan','sanchi','suigen','kyu'].forEach(k=>document.getElementById('o-'+k).checked=!!opts[k]);
+  const sv=document.getElementById('o-kyuv');if(!sv.options.length){for(let i=6;i<=14;i++){const o=el('option',null,`${i}齢級（${i*5-4}年生）`);o.value=i;sv.append(o)}}sv.value=opts.kyuv;
+}
+function readCond(){['hoan','plan','sanchi','suigen','kyu'].forEach(k=>opts[k]=document.getElementById('o-'+k).checked);opts.kyuv=Number(document.getElementById('o-kyuv').value)}
+document.getElementById('cond-open').onclick=()=>{fillCond();condEl.hidden=false};
+document.getElementById('cond-close').onclick=()=>condEl.hidden=true;
+condEl.addEventListener('click',e=>{if(e.target===condEl)condEl.hidden=true});
+condEl.addEventListener('change',()=>{readCond();fillCond()});
+document.getElementById('cond-apply').onclick=()=>{readCond();try{localStorage.setItem('zoning:opts',JSON.stringify(opts))}catch(e){}condEl.hidden=true;restyle();if(selected)openParcel(selected);else showSummary();toast('この条件で判定し直しました')};
+document.getElementById('cond-reset').onclick=()=>{opts=Object.assign({},DEF);fillCond()};
+
+// ===== CSV書き出し（小班ごとの判定結果） =====
+document.getElementById('export').onclick=()=>{
+  const ovr=ovrMap();
+  const head=['大字','地番','林小班','字名','林種','樹種','林齢','齢級','面積ha','保安林','現行計画区分','自動判定','判定理由','手直し','ゾーン'];
+  const q=v=>{v=v==null?'':String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+  const lines=[head.join(',')];
+  rowsAll.forEach(r=>{const [z,why]=zoneOf(r);const m=ovr[r.o+'|'+r.cb];const mm=ZMAP[m]?m:'';
+    lines.push([r.o,r.cb,r.k,r.az,r.lt,r.sp,r.age,r.kyu,r.a,r.ho,r.plan,ZMAP[z].n,why,mm?ZMAP[mm].n:'',ZMAP[mm||z].n].map(q).join(','))});
+  lines.push('');lines.push(q('この成果品は、鹿児島県森林資源情報データ（ダウンロード）から作成したものである'));
+  const blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv'});const a=document.createElement('a');
+  const d=new Date();a.download=`zoning-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}.csv`;
+  a.href=URL.createObjectURL(blob);document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+  toast(`${a.download} を保存しました（Excelで開けます）`)};
+
+idb.get('rows').then(r=>{if(r&&r.length){rowsAll=r}onForestLoaded()}).catch(()=>onForestLoaded());
+</script>
+</body>
+</html>
