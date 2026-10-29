@@ -1,5 +1,5 @@
 // 錦江町 森林管理システム：オフラインでも開けるようにするための仕組み
-const VER='v32';
+const VER='v33';
 // この仕組みが置かれたフォルダ（例：/my-first-repo/app/）。町ごとのフォルダで同じファイルを使う
 const BASE=new URL(self.registration.scope).pathname;
 const PFX=BASE.endsWith('/app/')?'forest':BASE.split('/').filter(Boolean).pop(); // 錦江町は今までどおり「forest」
@@ -7,7 +7,8 @@ const SHELL=PFX+'-shell-'+VER, DATA=PFX+'-data-v1', TILES=PFX+'-tiles-v1';
 const SHELL_FILES=['./','./index.html','./config.js','./manifest.webmanifest','./icon-192.png','./icon-512.png',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'];
-const TILE_MAX=4000;
+const TILE_MAX=6000;            // 一度見た地図の画像を覚えておく枚数
+const SAVED='gsi-saved-v1';      // 「地図を端末に保存」で保存した画像（自動では消さない。どのアプリからも使う）
 
 self.addEventListener('install',e=>{
   e.waitUntil(caches.open(SHELL).then(c=>Promise.all(SHELL_FILES.map(u=>c.add(u).catch(()=>{})))).then(()=>self.skipWaiting()));
@@ -24,7 +25,7 @@ async function networkFirst(req,cacheName,fresh){
 }
 async function cacheFirst(req,cacheName,trim){
   const c=await caches.open(cacheName);
-  const m=await c.match(req);if(m)return m;
+  const m=(await c.match(req))||(await (await caches.open(SAVED)).match(req.url));if(m)return m;
   const r=await fetch(req);
   if(r&&(r.ok||r.type==='opaque')){c.put(req,r.clone()).then(()=>{if(trim)trimCache(c,trim)}).catch(()=>{})}
   return r;
@@ -56,7 +57,8 @@ self.addEventListener('fetch',e=>{
   if(u.origin===location.origin&&u.pathname.startsWith(BASE+'data/')){e.respondWith(dataCache(req));return}
   if(u.origin===location.origin&&u.pathname===BASE+'kokuyu/index.json'){e.respondWith(networkFirst(req,DATA,true));return}
   if(u.origin===location.origin&&u.pathname.startsWith(BASE+'kokuyu/')){e.respondWith(dataCache(req));return}
-  if(u.hostname==='cyberjapandata.gsi.go.jp'){e.respondWith(cacheFirst(req,TILES,TILE_MAX));return}
+  // 地図の画像は保存分を先に使う（画面から直接読むもの＝保存処理や標高の計算は、そのまま通す）
+  if(u.hostname==='cyberjapandata.gsi.go.jp'){if(req.destination==='image')e.respondWith(cacheFirst(req,TILES,TILE_MAX));return}
   if(u.hostname==='cdnjs.cloudflare.com'||u.hostname==='fonts.googleapis.com'||u.hostname==='fonts.gstatic.com'){e.respondWith(cacheFirst(req,SHELL));return}
   if(u.origin===location.origin){e.respondWith(networkFirst(req,SHELL))}
 });
