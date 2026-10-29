@@ -131,7 +131,7 @@ table.sb td.n{text-align:right}
     <button id="v-plan" aria-pressed="false">現行計画の区分</button>
   </div>
   <span class="fwrap" id="fload-wrap"><span class="fbtn" id="fload">森林簿CSVを読み込む</span><input id="ffile" class="fover" type="file" multiple accept=".csv,text/csv,text/comma-separated-values,application/csv,application/vnd.ms-excel,text/plain" aria-label="森林簿CSVを選ぶ"></span>
-  <button id="kk" class="hbtn kkbtn" type="button" aria-pressed="true">国有林</button>
+  <button id="kk" class="hbtn kkbtn" type="button" aria-pressed="false">国有林</button>
   <button id="export" class="hbtn" type="button" hidden>CSV書き出し</button>
 </div>
 <div id="maparea"><div id="map"></div><div id="zhint" class="zhint" hidden>地図を拡大すると、民有林（地番）と国有林の境界が表示されます</div></div>
@@ -299,7 +299,8 @@ function styleFor(f){
 }
 function restyle(){if(parcels)parcels.setStyle(styleFor);if(kkLayer)kkLayer.setStyle(kkStyle)}
 // ---- 国有林（国土数値情報「国有林野」から錦江町分。森林管理システムと同じデータを使う） ----
-let kkLayer=null,kkRoads=null,kkData=null,kkLoading=null,kkOn=true;try{kkOn=localStorage.getItem('zoning:kokuyu')!=='off'}catch(e){}
+// 国有林は通常は表示せず、「国有林」ボタンで表示する
+let kkLayer=null,kkRoads=null,kkData=null,kkLoading=null,kkOn=false;try{kkOn=localStorage.getItem('zoning:kokuyu2')==='on'}catch(e){}
 const KK_KT=[{m:'水源涵養',c:'#3b82c4'},{m:'山地災害防止',c:'#8d6e63'},{m:'自然維持',c:'#2e7d32'},{m:'森林空間利用',c:'#e07aa8'},{m:'快適環境',c:'#8e6cc4'},{m:'木材生産',c:'#7cc47f'}];
 const kkKt=s=>KK_KT.find(x=>String(s||'').includes(x.m))||null;
 const KK_RS={'単':'育成単層林','複':'育成複層林','天':'天然生林','育':'育成天然林','人伐':'人工林伐採跡地'};
@@ -335,13 +336,13 @@ function kkLoad(){if(kkLoading)return kkLoading;
       kkLayer=L.geoJSON(u,{style:kkStyle,onEachFeature:(f,l)=>{f.properties.__kk=true;l.on('click',()=>openKK(l))}});
       map.attributionControl.addAttribution('国有林：国土数値情報（国有林野データ）（国土交通省）を加工');kkApply();if(!selected)showSummary()})
     .catch(()=>{kkLoading=null;toast('国有林のデータを読み込めませんでした')})}
-function kkApply(){document.getElementById('kk').setAttribute('aria-pressed',kkOn);document.getElementById('zhint').hidden=map.getZoom()>=MINZ;
+function kkApply(){document.getElementById('kk').setAttribute('aria-pressed',kkOn);const zh=document.getElementById('zhint');zh.hidden=map.getZoom()>=MINZ;zh.textContent=kkOn?'地図を拡大すると、民有林（地番）と国有林の境界が表示されます':'地図を拡大すると、地番の境界が表示されます';
   if(!kkLayer){if(kkOn)kkLoad();return}
   // 民有林（地番）と同じ拡大率から表示する
   if(kkOn&&map.getZoom()>=MINZ){if(!map.hasLayer(kkLayer)){kkLayer.addTo(map);kkRoads.addTo(map);kkLayer.bringToBack()}}else if(map.hasLayer(kkLayer)){kkLayer.remove();kkRoads.remove()}
   document.getElementById('zhint').hidden=map.getZoom()>=MINZ}
 map.on('zoomend',()=>{kkApply();document.getElementById('zhint').hidden=map.getZoom()>=MINZ});
-document.getElementById('kk').onclick=()=>{kkOn=!kkOn;try{localStorage.setItem('zoning:kokuyu',kkOn?'on':'off')}catch(e){}kkApply();if(!selected)showSummary();
+document.getElementById('kk').onclick=()=>{kkOn=!kkOn;try{localStorage.setItem('zoning:kokuyu2',kkOn?'on':'off')}catch(e){}kkApply();if(!selected)showSummary();
   toast(kkOn?'国有林を表示しました（水色の点線、茶色の線は林道）':'国有林を隠しました')};
 // 国有林の集計（機能類型別）
 function kkSummary(){
