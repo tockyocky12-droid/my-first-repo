@@ -1,0 +1,992 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>南大隅町森林管理システム</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2f6b45">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="南大隅森林">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700&family=BIZ+UDGothic:wght@400;700&display=swap">
+<style>
+/* 地図が主役の一画面アプリ。上に細いバー、下からせり上がる地番カード */
+:root{
+  --bg:#f3f5f1; --panel:#ffffff; --fg:#1d2a22; --muted:#5f6d63;
+  --accent:#2f6b45; --accent-fg:#ffffff; --line:#d5ddd5; --parcel:#c2410c; --sel:#facc15;
+  --f-display:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",sans-serif;
+  --f-data:"BIZ UDGothic","Hiragino Sans","Yu Gothic",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#121814; --panel:#1b231d; --fg:#e6ece6; --muted:#9aa89e;
+  --accent:#6fbf8a; --accent-fg:#0d1a12; --line:#2e3a31; color-scheme:dark;
+}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-display);font-size:15px;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:10px;padding-block:calc(env(safe-area-inset-top,0px) + 8px) 8px;
+  padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px));
+  background:var(--panel);border-bottom:1px solid var(--line);z-index:1000}
+header h1{font-size:16px;margin:0;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:transparent;color:var(--fg);font:inherit;font-size:13px;padding:6px 10px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg)}
+#search{display:flex;gap:6px;padding:8px max(14px,env(safe-area-inset-right,0px)) 8px max(14px,env(safe-area-inset-left,0px));background:var(--panel);border-bottom:1px solid var(--line);z-index:1000}
+#search input{flex:1;min-width:0;font:inherit;font-family:var(--f-data);padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+#search button{font:inherit;padding:8px 12px;border-radius:8px;border:0;background:var(--accent);color:var(--accent-fg);cursor:pointer}
+#zhint,.zhint{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:950;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:12.5px;box-shadow:0 2px 8px rgba(0,0,0,.18);pointer-events:none;max-width:calc(100% - 120px);text-align:center;line-height:1.4}
+#maparea{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
+#map{flex:1;min-height:0}
+#cands{position:absolute;top:0;left:0;right:0;z-index:1050;max-height:70%;overflow:auto;background:var(--panel);border-bottom:1px solid var(--line);box-shadow:0 6px 16px rgba(0,0,0,.2);
+  padding-left:max(10px,env(safe-area-inset-left,0px));padding-right:max(10px,env(safe-area-inset-right,0px));padding-block:0 8px}
+.chead{position:sticky;top:0;background:var(--panel);display:flex;align-items:center;justify-content:space-between;padding:10px 4px 6px;font-weight:700;font-size:14px}
+.cx{border:0;background:transparent;color:var(--muted);font-size:22px;line-height:1;cursor:pointer;padding:0 4px}
+.cgrp{font-size:12px;color:var(--accent);font-weight:700;letter-spacing:.06em;padding:8px 4px 4px}
+.citem{display:grid;grid-template-columns:auto 1fr;grid-template-areas:"no oz" "no sum";column-gap:12px;row-gap:1px;align-items:center;width:100%;text-align:left;font:inherit;color:var(--fg);
+  background:transparent;border:0;border-top:1px solid var(--line);padding:9px 4px;cursor:pointer}
+.citem:hover,.citem:focus-visible{background:var(--bg)}
+.cno{grid-area:no;font-family:var(--f-data);font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;min-width:4.5em}
+.coz{grid-area:oz;font-size:14px;min-width:0}
+.csum{grid-area:sum;font-size:12px;color:var(--muted);min-width:0}
+.cbas{font-size:11px;color:#dc2626;border:1px solid #dc2626;border-radius:999px;padding:0 6px}
+#locate{position:absolute;right:calc(14px + env(safe-area-inset-right,0px));bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:900;
+  width:52px;height:52px;border-radius:50%;border:0;background:var(--panel);color:var(--accent);box-shadow:0 2px 10px rgba(0,0,0,.25);cursor:pointer;display:grid;place-items:center}
+#locate.on{background:var(--accent);color:var(--accent-fg)}
+#locate svg{width:26px;height:26px}
+#toast{position:fixed;left:50%;transform:translateX(-50%);top:150px;z-index:3000;background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;max-width:90%}
+#sheet{position:absolute;left:0;right:0;bottom:0;z-index:1000;background:var(--panel);border-top:1px solid var(--line);
+  border-radius:14px 14px 0 0;box-shadow:0 -4px 16px rgba(0,0,0,.18);
+  padding-block:14px calc(16px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  max-height:60%;overflow:auto}
+#sheet .top{display:flex;align-items:flex-start;gap:10px}
+#sheet .oaza{font-size:13px;color:var(--muted);margin-top:2px}
+#sheet .close{border:0;background:transparent;color:var(--muted);font-size:24px;line-height:1;cursor:pointer;padding:0 4px}
+dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:12px 0;font-family:var(--f-data);font-size:14px}
+dt{color:var(--muted)} dd{margin:0;font-variant-numeric:tabular-nums}
+label{font-size:13px;color:var(--muted);display:block;margin-bottom:4px}
+#sheet h2,#sheet .h2{font-size:22px;margin:0;font-family:var(--f-data);font-weight:700;display:block}
+.shead{flex:1;min-width:0;text-align:left;border:0;background:transparent;color:var(--fg);font:inherit;padding:0;cursor:pointer}
+.shead .oaza{display:block}
+#sheet.min #sbody{display:none}
+#sheet.min{padding-block:10px calc(10px + env(safe-area-inset-bottom,0px))}
+.tabs{display:flex;gap:4px;margin-top:12px;border-bottom:1px solid var(--line)}
+.tabs button{flex:1;font:inherit;font-size:14px;background:transparent;border:0;border-bottom:3px solid transparent;color:var(--muted);padding:8px 4px;cursor:pointer;position:relative}
+.tabs button[aria-selected="true"]{color:var(--fg);font-weight:700;border-bottom-color:var(--accent)}
+.tabs .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#dc2626;margin-left:4px;vertical-align:middle}
+.pane{padding-top:4px}
+#p-forest>#s-forest>.secttl:first-child{display:none}
+textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);resize:none;overflow:auto;margin-top:8px}
+.saved{font-size:12px;color:var(--accent);margin-top:4px;min-height:1em}
+.leaflet-container{font-family:var(--f-display)}
+.empty{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:800;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;max-width:min(320px,86%);font-size:14px;line-height:1.6}
+:focus-visible{outline:3px solid var(--sel);outline-offset:2px}
+#tint{display:flex;align-items:center;gap:8px;padding:0 max(14px,env(safe-area-inset-right,0px)) 8px max(14px,env(safe-area-inset-left,0px));background:var(--panel);border-bottom:1px solid var(--line);z-index:1000;font-size:13px;color:var(--muted)}
+#legend{position:absolute;left:calc(10px + env(safe-area-inset-left,0px));bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:900;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12px;display:grid;gap:3px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+#legend div{display:flex;align-items:center;gap:6px}
+#legend .lgh{font-weight:700;color:var(--muted);font-size:11px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+#legend .lgr{display:flex;align-items:center;gap:6px;justify-content:space-between}
+#legend .lgt{display:flex;align-items:center;gap:6px;font:inherit;font-size:12px;color:var(--fg);background:transparent;border:0;padding:3px 0;cursor:pointer;text-align:left}
+#legend .lgck{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:3px;border:1.5px solid var(--accent);background:var(--accent);color:var(--accent-fg);font-size:10px;line-height:1;flex:none}
+#legend .lgr.off .lgck{background:transparent;border-color:var(--muted)}
+#legend .lgr.off .lgt{color:var(--muted)}
+#legend .lgr.off i{opacity:.35}
+#legend .lgo{font:inherit;font-size:10px;padding:1px 6px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer}
+#legend .lgall{font:inherit;font-size:10px;padding:1px 7px;border-radius:999px;border:1px solid var(--accent);background:transparent;color:var(--accent);cursor:pointer;font-weight:400}
+#legend i{width:14px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,.25);flex:none}
+.fr{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}
+.fr h3{font-size:15px;margin:0;font-family:var(--f-data);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.fr h3 .az{font-weight:400;color:var(--muted);font-size:13px}
+.chip{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid var(--line);font-weight:400}
+.chip.ho{background:#fef3c7;color:#78350f;border-color:#f59e0b}
+.fr dl{margin:8px 0 4px}
+.nof{font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;margin-top:10px;line-height:1.6}
+.fbtn{margin-left:auto;font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px dashed var(--muted);background:transparent;color:var(--fg);cursor:pointer;white-space:nowrap}
+.fbtn.on{border-style:solid;border-color:var(--accent);color:var(--accent)}
+.frow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px}
+.frow .fbtn{margin-left:0;background:var(--accent);color:var(--accent-fg);border:0;padding:8px 12px;font-size:13px}
+.frow a{color:var(--accent);font-size:13px}
+#tint{flex-wrap:wrap}
+#tint .fwrap{margin-left:0}
+.fwrap[hidden],[hidden]{display:none!important}
+.hbtn{border:1px solid var(--line);background:transparent;color:var(--fg);font:inherit;font-size:16px;border-radius:8px;width:36px;height:32px;cursor:pointer;flex:none}
+#recp{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;
+  padding:calc(env(safe-area-inset-top,0px) + 56px) max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px));overflow:auto}
+.rp-card{background:var(--panel);color:var(--fg);border-radius:14px;padding:16px;max-width:460px;width:100%;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+.rp-top{display:flex;align-items:center;justify-content:space-between}
+.rp-top h2{font-size:18px;margin:0}
+.rp-top .close{border:0;background:transparent;color:var(--muted);font-size:24px;line-height:1;cursor:pointer;padding:0 4px}
+.rp-sum{font-family:var(--f-data);font-size:13px;color:var(--muted);margin:6px 0 4px}
+.rp-step{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}
+.rp-step h3{font-size:15px;margin:0 0 4px}
+.rp-step p{font-size:13px;color:var(--muted);margin:0 0 10px;line-height:1.6}
+.rp-btns{display:flex;gap:8px;flex-wrap:wrap}
+.pbtn{display:inline-block;font:inherit;font-size:14px;padding:9px 14px;border-radius:8px;border:0;background:var(--accent);color:var(--accent-fg);cursor:pointer}
+#rec-save{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+.rp-note{font-size:12px;color:var(--muted);margin:14px 0 0}
+.rp-msg{font-size:13px;line-height:1.6;background:var(--bg);border:1px solid var(--accent);border-radius:8px;padding:8px 10px;margin:8px 0 0}
+.rp-ver{display:block;margin-top:6px;font-size:11px;opacity:.7}
+
+.fwrap{position:relative;display:inline-block;overflow:hidden;border-radius:8px}
+.fwrap .fbtn{display:inline-block;margin:0}
+.fover{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:40px;z-index:2}
+.fwrap:focus-within .fbtn{outline:3px solid var(--sel);outline-offset:2px}
+.fbtn.part{border-color:#d97706;color:#d97706}
+.fmiss{font-size:12px;color:#d97706}
+.freload{border-top:1px solid var(--line);padding-top:10px;margin-top:12px}
+.freload .fbtn{background:transparent!important;color:var(--fg)!important;border:1px dashed var(--muted)!important;font-size:12px!important;padding:6px 10px!important}
+.fcount{font-size:11px;color:var(--muted)}
+.mapinfo{margin-top:12px;font-size:13px;color:var(--muted)}
+.mapinfo summary{cursor:pointer;padding:4px 0}
+.mapinfo dl{font-size:13px;margin:6px 0}
+.credit{font-size:11px;color:var(--muted);margin-top:6px}
+.areas{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.ab{border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-width:0}
+.ab label,.albl{font-size:12px;color:var(--muted);margin:0}
+.ain{display:flex;align-items:baseline;gap:4px;font-family:var(--f-data)}
+.ain input{width:100%;min-width:0;font:inherit;font-size:20px;font-family:var(--f-data);font-variant-numeric:tabular-nums;border:0;border-bottom:1px dashed var(--line);background:transparent;color:var(--fg);padding:2px 0}
+.ain span{font-size:13px;color:var(--muted)}
+.aval{font-size:20px;font-family:var(--f-data);font-variant-numeric:tabular-nums;padding:2px 0}
+.aval small{font-size:13px;color:var(--muted)}
+.anote{font-size:11px;color:var(--muted);margin-top:2px}
+.anote.warn{color:#d97706;font-weight:700}
+.secttl{font-size:12px;letter-spacing:.08em;color:var(--accent);font-weight:700;margin-top:12px}
+.bas{display:grid;gap:8px;margin-top:6px}
+.tabs button{font-size:13px;padding:8px 2px}
+.rkadd{width:100%;margin-top:8px;font:inherit;font-size:14px;padding:9px;border-radius:8px;border:1px dashed var(--accent);background:transparent;color:var(--accent);cursor:pointer}
+.rkform{display:grid;gap:8px;margin-top:8px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.rkform input,.rkform textarea{width:100%;min-width:0;font:inherit;font-family:var(--f-data);padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--fg);margin:0;max-height:none;min-height:0}
+.rkform label{margin-bottom:2px}
+.rkbtns{display:flex;gap:8px}
+.rksave{font:inherit;font-size:14px;padding:8px 18px;border-radius:8px;border:0;background:var(--accent);color:var(--accent-fg);cursor:pointer}
+.rkcancel{font:inherit;font-size:14px;padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--fg);cursor:pointer}
+.rk{border-bottom:1px solid var(--line);padding:9px 0}
+.rk .l1{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-family:var(--f-data)}
+.rk .dt{font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px}
+.rk .wk{font-weight:700;font-size:15px}
+.rk .ar{font-size:13px;font-variant-numeric:tabular-nums}
+.rk .l2{font-size:12px;color:var(--muted);margin-top:2px}
+.rk .nt{font-size:13px;margin-top:3px;white-space:pre-wrap;overflow-wrap:anywhere}
+.rk .acts{display:flex;gap:12px;margin-top:4px}
+.rk .acts button{font:inherit;font-size:12px;background:transparent;border:0;color:var(--accent);padding:2px 0;cursor:pointer}
+.rk .acts button.del{color:#dc2626}
+.rkempty{font-size:13px;color:var(--muted);padding:8px 0 0}
+.rkref{margin-top:14px;font-size:12px;color:var(--muted)}
+.rkref b{font-weight:700}
+.bas label{margin-bottom:2px}
+.bas input,.bas select{width:100%;min-width:0;font:inherit;font-family:var(--f-data);padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+.brow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.brow>div{min-width:0}
+.bnote{font-size:11px;color:var(--muted)}
+.msub{margin-top:10px}
+.msub>label{font-size:13px;font-weight:700;color:var(--fg);display:block;margin-bottom:4px}
+.msub>input{width:100%;min-width:0;font:inherit;font-family:var(--f-data);padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+.msub textarea{margin-top:0}
+.bdel{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px;font-size:13px}
+.bdelbtn{font:inherit;font-size:13px;padding:6px 12px;border-radius:8px;border:1px solid #dc2626;background:transparent;color:#dc2626;cursor:pointer}
+.bdelbtn.solid{background:#dc2626;color:#fff}
+.bdel .plain{font:inherit;font-size:13px;background:transparent;border:0;color:var(--muted);cursor:pointer;padding:6px 4px}
+.leaflet-tooltip.blabel{background:#fff;color:#14532d;border:2px solid #2f6b45;border-radius:6px;font:700 12px/1.3 "BIZ UDGothic","Hiragino Sans",sans-serif;padding:2px 6px;box-shadow:0 1px 4px rgba(0,0,0,.3);white-space:nowrap}
+.leaflet-tooltip.blabel::before{display:none}
+.leaflet-tooltip.blabel{font-size:11px;padding:1px 5px;border-width:1.5px;white-space:normal;width:max-content;max-width:7.5em;text-align:center;line-height:1.25;overflow-wrap:anywhere}
+.leaflet-tooltip.blabel.bas{color:#991b1b;border-color:#dc2626}
+.leaflet-tooltip.blabel.done{color:#57534e;border-color:#a8a29e;background:#f5f5f4}
+.leaflet-tooltip.blabel.hid,.lz-low .leaflet-tooltip.blabel,.lb-off .leaflet-tooltip.blabel{visibility:hidden}
+.lbtn{margin-left:auto;font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer;white-space:nowrap}
+.kkbtn{margin-left:auto}
+.kkbtn+.lbtn{margin-left:0}
+.kkbtn[aria-pressed="true"]{border-color:#0e7490!important;color:#0e7490!important}
+.kkpop{font-family:var(--f-data);font-size:13px;line-height:1.55;min-width:200px}
+.kkpop .kkh{display:flex;align-items:center;gap:6px;font-size:15px;font-weight:700;margin-bottom:4px}
+.kkpop .kkb{font-size:11px;color:#fff;background:#0e7490;border-radius:999px;padding:1px 8px;font-weight:400}
+.kkpop table{border-collapse:collapse}
+.kkpop td{padding:1px 8px 1px 0;vertical-align:top}
+.kkpop td:first-child{color:#5f6d63;white-space:nowrap}
+.kkpop .src{font-size:10px;color:#5f6d63;margin-top:6px}
+.lbtn[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+#tint{flex-wrap:wrap}
+/* パソコンなど横に広い画面：地番カードを右側の縦長パネルにし、地図を広く見せる */
+@media (min-width:900px){
+  body{font-size:15px}
+  #search{padding-right:14px}
+  #search input{max-width:520px}
+  #sheet{left:auto;right:0;top:var(--toph,142px);bottom:0;width:420px;max-height:none;border-radius:0;border-top:0;border-left:1px solid var(--line);box-shadow:-4px 0 16px rgba(0,0,0,.12);padding-block:14px 16px;padding-left:18px;padding-right:18px}
+  #sheet.min{top:auto;bottom:0;width:420px;border-top:1px solid var(--line);border-radius:14px 0 0 0}
+  body:has(#sheet:not([hidden]):not(.min)) #locate{right:calc(420px + 14px)}
+  body:has(#sheet:not([hidden]):not(.min)) .leaflet-control-attribution{margin-right:420px}
+  #cands{right:auto;width:440px;max-height:75%;border-right:1px solid var(--line);border-radius:0 0 12px 0}
+  #legend{font-size:13px}
+  #tint{gap:10px}
+  .tabs button{font-size:14px}
+  textarea{max-height:40vh}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>錦江町森林管理システム</h1>
+  <div class="seg" role="group" aria-label="背景地図">
+    <button id="bm-std" aria-pressed="true">地図</button>
+    <button id="bm-photo" aria-pressed="false">写真</button>
+  </div>
+  <button id="rec-open" class="hbtn" type="button" aria-label="記録の受け渡し">⇅</button>
+</header>
+<div id="recp" hidden>
+  <div class="rp-card" role="dialog" aria-labelledby="rp-ttl">
+    <div class="rp-top"><h2 id="rp-ttl">記録の受け渡し</h2><button id="rec-close" class="close" type="button" aria-label="閉じる">×</button></div>
+    <p class="rp-sum" id="rp-sum"></p>
+    <p class="rp-msg" id="rp-msg" role="status" hidden></p>
+    <div class="rp-step">
+      <h3>この端末の記録を送る</h3>
+      <p>メモ表示・メモ内部記録・地積・伐採届・施業履歴をファイルに書き出します。メールやLINEなどで、もう一方の端末に送ってください。</p>
+      <div class="rp-btns"><button id="rec-share" class="pbtn" type="button" hidden>共有して送る</button><button id="rec-save" class="pbtn" type="button">ファイルに保存</button></div>
+    </div>
+    <div class="rp-step">
+      <h3>送られてきた記録を取り込む</h3>
+      <p>受け取った記録ファイル（.txt または .json）を選びます。同じ地番の記録は、ファイルの内容で上書きします。この端末にしかない記録は消えません。</p>
+      <div class="rp-btns"><span class="fwrap pwrap"><span class="pbtn">ファイルを選んで取り込む</span><input id="rec-file" class="fover" type="file" accept=".json,.txt,application/json,text/plain" aria-label="記録ファイルを選ぶ"></span></div>
+    </div>
+    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-29h</span></p>
+  </div>
+</div>
+<form id="search" autocomplete="off">
+  <input id="q" type="search" placeholder="地番で探す（例：1234-5）" aria-label="地番で探す">
+  <button type="submit">検索</button>
+</form>
+<div id="tint">
+  <span>色分け</span>
+  <div class="seg" role="group" aria-label="色分け">
+    <button id="t-none" aria-pressed="true">なし</button>
+    <button id="t-species" aria-pressed="false">樹種</button>
+    <button id="t-age" aria-pressed="false">林齢</button>
+    <button id="t-rireki" aria-pressed="false">施業</button>
+  </div>
+  <button id="kk" class="lbtn kkbtn" type="button" aria-pressed="false">国有林</button>
+  <button id="lbl" class="lbtn" type="button" aria-pressed="true">メモ表示</button>
+  <span class="fwrap"><span id="fload" class="fbtn">森林簿CSVを読み込む</span><input id="ffile" class="fover" type="file" accept=".csv,text/csv,text/comma-separated-values,application/csv,application/vnd.ms-excel,text/plain" multiple aria-label="森林簿CSVを選ぶ"></span>
+  <span id="fmiss" class="fmiss" hidden></span>
+</div>
+<div id="maparea"><div id="map"></div><div id="zhint" class="zhint" hidden>地図を拡大すると、民有林（地番）と国有林の境界が表示されます</div><div id="cands" hidden role="listbox" aria-label="地番の候補"></div></div>
+<div id="legend" hidden></div>
+<button id="locate" aria-label="現在地を表示">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
+</button>
+<div id="toast" hidden></div>
+<div id="empty" class="empty" hidden>地番データを読み込めませんでした。<br>通信状態を確認して、ページを開き直してください。</div>
+<section id="sheet" hidden aria-live="polite">
+  <div class="top">
+    <button class="shead" id="s-head" type="button" aria-expanded="true" aria-controls="sbody">
+      <span class="h2" id="s-chiban"></span>
+      <span class="oaza" id="s-oaza"></span>
+    </button>
+    <button class="close" id="s-min" type="button" aria-label="小さくする">▾</button>
+    <button class="close" id="s-close" type="button" aria-label="閉じる">×</button>
+  </div>
+  <div id="sbody">
+  <div class="areas">
+    <div class="ab">
+      <label for="chiseki">地積（登記簿）</label>
+      <div class="ain"><input id="chiseki" inputmode="decimal" autocomplete="off" placeholder="未入力"><span>m²</span></div>
+      <div class="anote" id="chiseki-note">登記簿で確認した値を入力</div>
+    </div>
+    <div class="ab">
+      <div class="albl">図上面積（参考）</div>
+      <div class="aval" id="s-area"></div>
+      <div class="anote" id="s-ratio">地図の形から計算</div>
+    </div>
+  </div>
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tab-forest" aria-selected="true" type="button">森林簿</button>
+    <button role="tab" id="tab-rireki" aria-selected="false" type="button">施業履歴<i class="dot" id="dot-rireki" hidden></i></button>
+    <button role="tab" id="tab-bassai" aria-selected="false" type="button">伐採届<i class="dot" id="dot-bassai" hidden></i></button>
+    <button role="tab" id="tab-memo" aria-selected="false" type="button">メモ表示<i class="dot" id="dot-memo" hidden></i></button>
+  </div>
+  <div class="pane" id="p-forest" role="tabpanel">
+    <div id="s-forest"></div>
+    <details class="mapinfo"><summary>地図データの詳細</summary><dl id="s-info"></dl></details>
+  </div>
+  <div class="pane" id="p-bassai" role="tabpanel" hidden>
+  <div class="bas">
+    <div class="brow">
+      <div><label for="b-date">受理日</label><input id="b-date" type="date"></div>
+      <div><label for="b-method">伐採方法</label>
+        <select id="b-method"><option value="">—</option><option>皆伐</option><option>択伐</option><option>間伐</option></select></div>
+    </div>
+    <div class="brow">
+      <div><label for="b-from">伐採開始</label><input id="b-from" type="date"></div>
+      <div><label for="b-to">伐採終了</label><input id="b-to" type="date"></div>
+    </div>
+    <div class="bnote">伐採届のある地番は、地図で赤い点線の枠になります。地図に文字を出すときは「メモ表示」タブで入力します。</div>
+    <div class="bdel" id="b-delrow"><button type="button" id="b-del" class="bdelbtn">この伐採届を削除</button></div>
+  </div>
+  </div>
+  <div class="pane" id="p-rireki" role="tabpanel" hidden>
+    <div id="rk-list"></div>
+    <button id="rk-add" class="rkadd" type="button">＋ 施業を記録する</button>
+    <form id="rk-form" class="rkform" hidden autocomplete="off">
+      <div class="brow">
+        <div><label for="rk-date">実施日</label><input id="rk-date" type="date" required></div>
+        <div><label for="rk-area">面積（ha）</label><input id="rk-area" inputmode="decimal" placeholder="例：0.85"></div>
+      </div>
+      <div><label for="rk-work">作業の種類</label><input id="rk-work" list="rk-works" required placeholder="選ぶか、入力"></div>
+      <div class="brow">
+        <div><label for="rk-jigyo">事業</label><input id="rk-jigyo" list="rk-jigyos" placeholder="選ぶか、入力"></div>
+        <div><label for="rk-who">実施者</label><input id="rk-who" list="rk-whos" placeholder="例：〇〇森林組合"></div>
+      </div>
+      <div><label for="rk-note">内容・メモ</label><textarea id="rk-note" rows="2" placeholder="例：本数調整伐 30%、搬出 120m³"></textarea></div>
+      <div class="rkbtns"><button type="submit" class="rksave">保存</button><button type="button" id="rk-cancel" class="rkcancel">やめる</button></div>
+    </form>
+    <div id="rk-ref"></div>
+    <datalist id="rk-works"><option>地拵え</option><option>植栽（再造林）</option><option>植栽（新植）</option><option>下刈り</option><option>つる切り</option><option>除伐</option><option>保育間伐</option><option>間伐（切捨て）</option><option>間伐（搬出）</option><option>枝打ち</option><option>主伐（皆伐）</option><option>択伐</option><option>獣害防護柵</option><option>作業道開設</option><option>竹林整備</option><option>被害木整理</option><option>現地調査</option></datalist>
+    <datalist id="rk-jigyos"><option>造林補助事業</option><option>森林環境譲与税</option><option>森林経営管理制度</option><option>町単独事業</option><option>治山事業</option><option>自力施業</option></datalist>
+    <datalist id="rk-whos"></datalist>
+  </div>
+  <div class="pane" id="p-memo" role="tabpanel" hidden>
+    <div class="msub"><label for="m-label">メモ画面表示</label>
+      <input id="m-label" autocomplete="off" placeholder="例：R8-012 皆伐">
+      <div class="bnote">入れた文字が、地図上のこの地番に表示されます。消すと表示も消えます。</div></div>
+    <div class="msub"><label for="memo">メモ内部記録</label>
+      <textarea id="memo" placeholder="例：2026/10 現地確認。境界杭あり。スギ 約40年生。"></textarea>
+      <div class="saved" id="saved">この端末に保存されます（地図には表示されません）</div></div>
+  </div>
+  </div>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="config.js"></script>
+<script>
+// ---- 町ごとの設定（config.js）。無いときは錦江町の設定で動く ----
+const CFG=Object.assign({id:'kinko',title:'錦江町森林管理システム',ns:'',idb:'kinko-forest',recApp:'kinko-forest',filePrefix:'kinko-kiroku',
+  center:[31.215,130.79],oazaAlias:{'麓':'田代麓','川原':'田代川原'},town:{'田代麓':'田代町','田代川原':'田代町','神川':'大根占町','馬場':'大根占町','城元':'大根占町'},
+  townList:['田代町','大根占町'],csvHint:'錦江町分の森林簿CSV（田代町・大根占町の2ファイル）',kkOffice:'大隅森林管理署'},window.CFG||{});
+document.title=CFG.title;document.querySelector('header h1').textContent=CFG.title;
+// 端末への保存は町ごとに分ける（錦江町は今までどおりの名前、ほかの町は「町名/」を頭に付ける）
+const LS={_k:null,
+  getItem(k){return localStorage.getItem(CFG.ns+k)},setItem(k,v){localStorage.setItem(CFG.ns+k,v);this._k=null},removeItem(k){localStorage.removeItem(CFG.ns+k);this._k=null},
+  get length(){if(!this._k){this._k=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);
+    if(CFG.ns?k.startsWith(CFG.ns):!/^[a-z0-9]+\//.test(k))this._k.push(CFG.ns?k.slice(CFG.ns.length):k)}}return this._k.length},
+  key(i){if(!this._k)void this.length;return this._k[i]??null}};
+const map=L.map('map',{zoomControl:true,preferCanvas:true}).setView(CFG.center,13);
+const gsiAttr='<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>';
+const std=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',{maxZoom:18,attribution:gsiAttr});
+const photo=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',{maxZoom:18,attribution:gsiAttr});
+std.addTo(map);
+function setBase(p){
+  (p?std:photo).remove();(p?photo:std).addTo(map);
+  document.getElementById('bm-std').setAttribute('aria-pressed',!p);
+  document.getElementById('bm-photo').setAttribute('aria-pressed',p);
+  if(parcels) parcels.setStyle(styleFor);
+  if(kkLayer) kkLayer.setStyle(kkStyle);
+}
+document.getElementById('bm-std').onclick=()=>setBase(false);
+document.getElementById('bm-photo').onclick=()=>setBase(true);
+
+const toastEl=document.getElementById('toast');let tt;
+function toast(t){toastEl.textContent=t;toastEl.hidden=false;clearTimeout(tt);tt=setTimeout(()=>toastEl.hidden=true,3000)}
+
+// ---- メモ（端末内保存） ----
+const store={get(k,ns='memo'){try{return LS.getItem(ns+':'+k)||''}catch(e){return''}},
+  set(k,v,ns='memo'){try{v?LS.setItem(ns+':'+k,v):LS.removeItem(ns+':'+k);return true}catch(e){return false}}};
+// ---- 伐採届（端末内保存） ----
+const BF=['date','method','from','to'];
+function bassaiRaw(p){const s=store.get(keyOf(p),'bassai');if(!s)return null;try{return JSON.parse(s)}catch(e){return null}}
+function bassaiOf(p){const o=bassaiRaw(p);return o&&BF.some(k=>o[k])?o:null}
+const mlabelOf=p=>store.get(keyOf(p),'mlabel');
+// 以前の版で伐採届に入れていた「地図に表示する文字」を、メモ画面表示へ移す
+function migrateLabels(){try{const ks=[];for(let i=0;i<LS.length;i++){const k=LS.key(i);if(k.startsWith('bassai:'))ks.push(k)}
+  ks.forEach(k=>{let o;try{o=JSON.parse(LS.getItem(k)||'null')}catch(e){return}if(!o||!o.label)return;
+    const mk='mlabel:'+k.slice(7);if(!LS.getItem(mk))LS.setItem(mk,o.label);
+    delete o.label;Object.keys(o).length?LS.setItem(k,JSON.stringify(o)):LS.removeItem(k)})}catch(e){}}
+migrateLabels();
+const today=()=>new Date().toISOString().slice(0,10);
+const isDone=b=>!!(b.to&&b.to<today());
+function applyLabel(l){
+  const p=l.feature.properties,t=mlabelOf(p),b=bassaiOf(p);
+  if(l.getTooltip())l.unbindTooltip();
+  if(t)l.bindTooltip(t,{permanent:true,direction:'center',className:'blabel'+(b&&isDone(b)?' done':' bas'),interactive:false});
+  scheduleDeclutter();
+}
+// メモ画面表示の文字：地番の境界が見える拡大率で表示する
+const LABEL_Z=14;let dt2; // 文字は地番の境界が出る拡大率と同じから表示
+function scheduleDeclutter(){clearTimeout(dt2);dt2=setTimeout(declutter,120)}
+function declutter(){ // 入力した文字はすべて表示する（重なっても隠さない）。拡大率が足りないときだけ隠す
+  map.getContainer().classList.toggle('lz-low',map.getZoom()<LABEL_Z);
+}
+map.on('zoomend moveend',scheduleDeclutter);
+let lblOn=true;try{lblOn=LS.getItem('ui:lbl2')!=='off'}catch(e){} // 名前を「メモ表示」に変えたので、表示を入れた状態から始める
+function setLbl(on){lblOn=on;map.getContainer().classList.toggle('lb-off',!on);document.getElementById('lbl').setAttribute('aria-pressed',on);
+  try{LS.setItem('ui:lbl2',on?'on':'off')}catch(e){} scheduleDeclutter()}
+document.getElementById('lbl').onclick=()=>{setLbl(!lblOn);toast(lblOn?(map.getZoom()<LABEL_Z?'さらに拡大するとメモの文字が出ます':'メモの文字を表示します'):'メモの文字を隠しました（伐採届の赤い枠は残ります）')};
+setLbl(lblOn);
+let bt;
+function bDelRow(){ // 伐採届の削除ボタン（記録があるときだけ）
+  const row=document.getElementById('b-delrow');row.replaceChildren();
+  if(!selected||!bassaiRaw(selected.feature.properties)){row.hidden=true;return}row.hidden=false;
+  const b=document.createElement('button');b.type='button';b.className='bdelbtn';b.textContent='この伐採届を削除';
+  b.onclick=()=>{row.replaceChildren();const q=document.createElement('span');q.textContent='受理日・伐採方法・期間をすべて削除しますか？';
+    const y=document.createElement('button');y.type='button';y.className='bdelbtn solid';y.textContent='削除する';
+    y.onclick=()=>{const layer=selected;if(!layer)return;clearTimeout(bt);
+      if(!store.set(keyOf(layer.feature.properties),'','bassai')){toast('削除できませんでした');return}
+      BF.forEach(f=>document.getElementById('b-'+f).value='');
+      applyLabel(layer);parcels.resetStyle(layer);if(selected===layer)layer.setStyle(styleFor(layer.feature));updateDots();bDelRow();toast('伐採届を削除しました')};
+    const n=document.createElement('button');n.type='button';n.className='plain';n.textContent='やめる';n.onclick=bDelRow;
+    row.append(q,y,n)};
+  row.append(b);
+}
+BF.forEach(k=>document.getElementById('b-'+k).addEventListener('change',()=>{
+  clearTimeout(bt);const layer=selected,key=currentKey;if(!layer)return;
+  bt=setTimeout(()=>{
+    const o={};BF.forEach(f=>{const v=document.getElementById('b-'+f).value.trim();if(v)o[f]=v});
+    const ok=store.set(key,Object.keys(o).length?JSON.stringify(o):'','bassai');
+    if(!ok){toast('伐採届を保存できませんでした（ブラウザの設定を確認してください）');return}
+    applyLabel(layer);parcels.resetStyle(layer);if(selected===layer)layer.setStyle(styleFor(layer.feature));updateDots();bDelRow();
+  },400);
+}));
+let curArea=0;
+const fmtArea=a=>a>=10000?`${(a/10000).toFixed(2)}<small> ha</small>`:`${Math.round(a).toLocaleString()}<small> m²</small>`;
+function updateRatio(){
+  const note=document.getElementById('s-ratio'),cn=document.getElementById('chiseki-note');
+  const c=parseFloat(String(document.getElementById('chiseki').value).normalize('NFKC').replace(/,/g,''));
+  note.className='anote';note.textContent='地図の形から計算';
+  if(!(c>0)){cn.textContent='登記簿で確認した値を入力';return}
+  cn.textContent=`＝ ${(c/10000).toFixed(4)} ha`;
+  if(curArea>0){const r=curArea/c*100;note.textContent=`地積の ${Math.round(r)}%`;if(r<80||r>120)note.className='anote warn'}
+}
+
+// ---- 地番の属性（データの列名の違いを吸収） ----
+const pick=(p,keys)=>{for(const k of keys){if(p[k]!=null&&p[k]!=='')return String(p[k])}return''};
+const chibanOf=p=>pick(p,['地番','chiban','CHIBAN']);
+const oazaOf=p=>[pick(p,['大字名','oaza','OAZA']),pick(p,['丁目名','chome']),pick(p,['小字名','koaza'])].filter(Boolean).join(' ');
+const keyOf=p=>p.__kk?'kk|'+(p.n||''):[pick(p,['筆ID','fude_id','id']),oazaOf(p),chibanOf(p)].join('|');
+// 選んだ区画が国有林か民有林（地番）かで、色の付け方と戻し方を分ける
+const isKK=l=>!!(l&&l.feature&&l.feature.properties&&l.feature.properties.__kk);
+const styleOf=l=>isKK(l)?kkStyle(l.feature):styleFor(l.feature);
+function resetL(l){if(isKK(l)){if(kkLayer)kkLayer.resetStyle(l)}else parcels.resetStyle(l)}
+
+function areaM2(layer){ // 球面上の多角形面積（概算）
+  const R=6378137,rad=Math.PI/180;let total=0;
+  const ll=layer.getLatLngs();
+  const rings=L.LineUtil.isFlat(ll)?[ll]:L.LineUtil.isFlat(ll[0])?ll:ll.flat(1);
+  rings.forEach((ring,i)=>{let a=0;for(let j=0;j<ring.length;j++){const p1=ring[j],p2=ring[(j+1)%ring.length];
+    a+=(p2.lng-p1.lng)*rad*(2+Math.sin(p1.lat*rad)+Math.sin(p2.lat*rad))}
+    a=Math.abs(a*R*R/2);total+= i===0?a:-a});
+  return Math.abs(total);
+}
+
+let parcels=null,selected=null,currentKey=null;
+const isPhoto=()=>map.hasLayer(photo);
+
+// ---- 森林簿（鹿児島県 森林簿オープンデータ） ----
+let forest={}; // forest[大字][地番] = [小班...]（端末に読み込んだ森林簿CSVから作る）
+let forestLoaded=false;
+// --- CSV（Shift_JIS）を端末内で読み、IndexedDB に保存する。データは外部に送らない ---
+function parseCSV(t){
+  const rows=[];let row=[],f='',q=false;
+  for(let i=0;i<t.length;i++){const c=t[i];
+    if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+    else if(c==='"')q=true;
+    else if(c===','){row.push(f);f=''}
+    else if(c==='\n'||c==='\r'){if(c==='\r'&&t[i+1]==='\n')i++;row.push(f);f='';if(row.length>1||row[0]!=='')rows.push(row);row=[]}
+    else f+=c}
+  if(f!==''||row.length){row.push(f);rows.push(row)}
+  return rows;
+}
+const OAZA_ALIAS=CFG.oazaAlias;
+function buildForest(texts){
+  const out={};let n=0;
+  const num=s=>{s=String(s||'').trim();return /^\d+(\.\d+)?$/.test(s)?Number(s):null};
+  for(const t of texts){
+    const rows=parseCSV(t);if(!rows.length)continue;
+    const H=rows[0].map(h=>h.trim()),ix={};H.forEach((h,i)=>ix[h]=i);
+    if(ix['地番']==null||ix['大字CD']==null)throw new Error('森林簿のCSVではないようです（「地番」「大字CD」の列がありません）');
+    const g=(r,k)=>ix[k]==null?'':String(r[ix[k]]||'').trim();
+    for(const r of rows.slice(1)){
+      const o=OAZA_ALIAS[g(r,'大字CD')]||g(r,'大字CD');const cb=nz(g(r,'地番'));if(!o||!cb)continue;
+      const sp=[];['1','2','3'].forEach(i=>{if(g(r,'樹種CD'+i)||g(r,'林種CD'+i))sp.push([g(r,'林種CD'+i),g(r,'樹種CD'+i),num(g(r,'林齢'+i)),num(g(r,'齢級'+i)),num(g(r,'混交歩合'+i))])});
+      const strip=s=>s.replace(/^0+(?=\d)/,'');
+      const rec={k:[strip(g(r,'林班')),nz(g(r,'準林班')),strip(g(r,'小班'))].filter(Boolean).join('-')+(g(r,'枝番')?'-'+g(r,'枝番'):''),
+        az:nz(g(r,'字名_カナ')),own:g(r,'所有形態CD'),kind:g(r,'森林の種類CD'),ho:g(r,'保安林CD'),a:num(g(r,'更正面積')),v:num(g(r,'総蓄積_M3')),
+        m:g(r,'施業方法CD').replace(/　/g,' '),chi:g(r,'地位CD'),sp,hy:g(r,'施業履歴年度'),hw:g(r,'施業履歴作業CD'),
+        fn:['木材等生産CD','水源かん養CD','山地災害防止CD','生活環境保全CD','保健文化CD'].map(k=>g(r,k))};
+      Object.keys(rec).forEach(k=>{const v=rec[k];if(v===''||v==null||(Array.isArray(v)&&(!v.length||v.every(x=>x===''))))delete rec[k]});
+      ((out[o]||(out[o]={}))[cb]||(out[o][cb]=[])).push(rec);n++;
+    }
+  }
+  return {data:out,rows:n};
+}
+const idb={open(){return new Promise((ok,ng)=>{try{const r=indexedDB.open(CFG.idb,1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>ok(r.result);r.onerror=()=>ng(r.error)}catch(e){ng(e)}})},
+  async get(k){const d=await this.open();return new Promise((ok,ng)=>{const q=d.transaction('kv').objectStore('kv').get(k);q.onsuccess=()=>ok(q.result);q.onerror=()=>ng(q.error)})},
+  async set(k,v){const d=await this.open();return new Promise((ok,ng)=>{const tx=d.transaction('kv','readwrite');tx.objectStore('kv').put(v,k);tx.oncomplete=()=>ok();tx.onerror=()=>ng(tx.error)})}};
+const TOWN=CFG.town;
+const countRows=d=>Object.values(d).reduce((n,o)=>n+Object.values(o).reduce((m,a)=>m+a.length,0),0);
+function setForest(obj){
+  forest=obj&&obj.data||{};const rows=countRows(forest);forestLoaded=rows>0;
+  const towns=[...new Set(Object.keys(forest).map(o=>TOWN[o]||o))];
+  const missing=CFG.townList.filter(t=>!towns.includes(t));
+  const b=document.getElementById('fload');
+  b.textContent=!forestLoaded?'森林簿CSVを読み込む':`森林簿 ${rows.toLocaleString()}件 ＋追加`;
+  b.title=forestLoaded?`読込済み：${towns.join('・')}`:'';
+  b.classList.toggle('on',forestLoaded);b.classList.toggle('part',forestLoaded&&missing.length>0);
+  const note=document.getElementById('fmiss');
+  note.hidden=!(forestLoaded&&missing.length);note.textContent=missing.length?`${missing.join('・')}の森林簿が未読込です`:'';
+  // 両方の町を読み込んだら上の段のボタンは隠す（読み込み直しは森林簿タブの下から）
+  b.parentElement.hidden=forestLoaded&&!missing.length;
+  if(parcels)parcels.setStyle(styleFor);
+  if(selected)openSheet(selected);
+}
+document.getElementById('ffile').addEventListener('change',onForestFiles);
+async function onForestFiles(e){
+  const files=[...e.target.files];e.target.value='';if(!files.length)return;
+  toast('森林簿を読み込んでいます…');
+  try{
+    const texts=await Promise.all(files.map(async f=>{const buf=await f.arrayBuffer();
+      let t=new TextDecoder('utf-8',{fatal:false}).decode(buf);if(!t.includes('地番'))t=new TextDecoder('shift_jis').decode(buf);return t}));
+    const add=buildForest(texts);
+    if(!add.rows)throw new Error('読み込める行がありませんでした');
+    // 読み込み済みの森林簿に追加する（同じ大字は新しいCSVで置き換える）
+    const data=Object.assign({},forest,add.data);
+    const towns=[...new Set(Object.keys(add.data).map(o=>TOWN[o]||o))].join('・');
+    const obj={data,rows:countRows(data),at:new Date().toISOString()};
+    setForest(obj);
+    try{await idb.set('forest',obj);toast(`${towns}の森林簿 ${add.rows.toLocaleString()} 件を読み込みました（この端末に保存）`)}
+    catch(_){toast(`${towns}の森林簿 ${add.rows.toLocaleString()} 件を読み込みました。端末に保存できなかったので、次回また読み込んでください`)}
+  }catch(err){toast(err.message||'森林簿を読み込めませんでした')}
+}
+idb.get('forest').then(o=>{if(o)setForest(o)}).catch(()=>{});
+const nz=s=>String(s||'').normalize('NFKC').trim();
+const forestOf=p=>{const o=forest[pick(p,['大字名'])];return o?(o[nz(chibanOf(p))]||null):null};
+const mainRec=recs=>recs.reduce((a,b)=>((b.a||0)>(a.a||0)?b:a));
+const SPECIES=[['すぎ','#1f6b3a',s=>s==='すぎ'],['ひのき','#5fa36a',s=>s==='ひのき'],['その他針葉樹','#3a8f8a',s=>s==='まつ'||s==='その他針'],
+  ['広葉樹','#c98a2e',s=>s==='その他広'||s==='くぬぎ'||s==='くす'],['竹林','#b7c93a',s=>/チク|ダケ/.test(s)],['伐採跡地・未立木地','#9c8c7a',(s,t)=>/伐採|未立木|困難|開発/.test(t+s)]];
+const AGES=[['1〜25年（1〜5齢級）','#bfe3b4',k=>k<=5],['26〜50年（6〜10齢級）','#6fbf73',k=>k<=10],['51〜75年（11〜15齢級）','#2e8b57',k=>k<=15],['76年以上（16齢級〜）','#14532d',k=>k>15]];
+let tint='none';
+// 施業履歴の色分け：その地番の一番新しい記録の作業で塗る
+const WORKS=[['植栽・地拵え（再造林）','#7cc47f',w=>/植栽|地拵|造林/.test(w)],['下刈り・除伐など（保育）','#e0b43a',w=>/下刈|つる|除伐/.test(w)],
+  ['間伐・枝打ち','#3b82c4',w=>/間伐|枝打/.test(w)],['主伐・択伐','#dc5a32',w=>/主伐|皆伐|択伐/.test(w)],['その他','#9a6fc4',w=>true]];
+function rirekiColor(p){const l=rkSort(rkGet(keyOf(p)));if(!l.length)return null;return WORKS.find(x=>x[2](l[0].work||''))[1]}
+// 絞り込み：色分けの項目ごとに、地図に出すかどうかを覚えておく（色＝項目）
+let hideT={species:[],age:[],rireki:[]};try{Object.assign(hideT,JSON.parse(LS.getItem('ui:tinthide')||'{}'))}catch(e){}
+const filt=c=>c&&(hideT[tint]||[]).includes(c)?null:c;
+function tintColor(f){return filt(rawTint(f))}
+function rawTint(f){
+  if(tint==='rireki')return rirekiColor(f.properties);
+  const recs=forestOf(f.properties);if(!recs)return null;
+  const sp=(mainRec(recs).sp||[])[0];if(!sp)return null;
+  if(tint==='species'){const m=SPECIES.find(x=>x[2](sp[1]||'',sp[0]||''));return m?m[1]:'#8b7fb8'}
+  if(tint==='age'){if(!sp[3]||sp[0]!=='人工林'&&sp[0]!=='天然林')return null;return AGES.find(x=>x[2](sp[3]))[1]}
+  return null;
+}
+function styleFor(f){
+  const sel=selected&&selected.feature===f;
+  const tc=tint!=='none'?tintColor(f):null;
+  if(sel)return {color:'#facc15',weight:3,fillOpacity:tc?.75:.25,fillColor:tc||'#facc15'};
+  if(bassaiOf(f.properties)||mlabelOf(f.properties))return {color:'#dc2626',weight:2.5,dashArray:'6 4',fillOpacity:tc?.6:.22,fillColor:tc||'#dc2626'};
+  if(tc)return {color:isPhoto()?'#fde68a':'#3d2b1f',weight:.6,fillOpacity:.6,fillColor:tc};
+  return {color:isPhoto()?'#fde68a':'#c2410c',weight:1,fillOpacity:.04,fillColor:'#c2410c'};
+}
+function setTint(t){
+  tint=t;['none','species','age','rireki'].forEach(k=>document.getElementById('t-'+k).setAttribute('aria-pressed',k===t));
+  drawLegend();
+  parcels.setStyle(styleFor);
+  if(kkLayer)kkLayer.setStyle(kkStyle);
+  if(t==='rireki'){const n=(()=>{let c=0;try{for(let i=0;i<LS.length;i++)if(LS.key(i).startsWith('rireki:'))c++}catch(e){}return c})();toast(n?`施業履歴のある ${n} 地番を色分けしています`:'施業履歴はまだ記録されていません')}
+  else if(t!=='none'&&!forestLoaded)toast('色分けには森林簿の読み込みが必要です（「森林簿CSVを読み込む」ボタン）');
+  else if(t!=='none'&&map.getZoom()<MINZ)toast('地図を拡大すると色分けが表示されます');
+}
+['none','species','age','rireki'].forEach(k=>document.getElementById('t-'+k).onclick=()=>setTint(k));
+function legendItems(){return tint==='species'?SPECIES.map(x=>[x[0],x[1]]).concat([['その他','#8b7fb8']]):tint==='age'?AGES.map(x=>[x[0],x[1]]):tint==='rireki'?WORKS.map(x=>[x[0],x[1]]):[]}
+function setHide(list){hideT[tint]=list;try{LS.setItem('ui:tinthide',JSON.stringify(hideT))}catch(e){}
+  drawLegend();parcels.setStyle(styleFor);if(kkLayer)kkLayer.setStyle(kkStyle);if(selected)selected.setStyle(styleOf(selected))}
+function drawLegend(){
+  const lg=document.getElementById('legend');lg.replaceChildren();const items=legendItems();lg.hidden=!items.length;if(!items.length)return;
+  const hid=hideT[tint]||[];
+  const hd=document.createElement('div');hd.className='lgh';hd.append(tint==='rireki'?'最新の施業':tint==='age'?'林齢':'樹種');
+  if(hid.length){const a=document.createElement('button');a.type='button';a.className='lgall';a.textContent='すべて表示';a.onclick=()=>setHide([]);hd.append(a)}
+  lg.append(hd);
+  items.forEach(([n,c])=>{const on=!hid.includes(c);
+    const row=document.createElement('div');row.className='lgr'+(on?'':' off');
+    const b=document.createElement('button');b.type='button';b.className='lgt';b.setAttribute('aria-pressed',on);b.title=on?'地図から外す':'地図に表示する';
+    const ck=document.createElement('span');ck.className='lgck';ck.textContent=on?'✓':'';
+    const i=document.createElement('i');i.style.background=c;b.append(ck,i,document.createTextNode(n));
+    b.onclick=()=>setHide(on?hid.concat([c]):hid.filter(x=>x!==c));
+    const o=document.createElement('button');o.type='button';o.className='lgo';o.textContent='だけ';o.title=n+'だけを表示';
+    o.onclick=()=>{setHide(items.map(x=>x[1]).filter(x=>x!==c));toast(`${n}だけを表示しています`)};
+    row.append(b,o);lg.append(row)});
+}
+
+function renderKK(p){
+  const box=document.getElementById('s-forest');box.replaceChildren();
+  const ttl=document.createElement('div');ttl.className='secttl';ttl.textContent='国有林';box.append(ttl);
+  const s=document.createElement('div');s.className='fr';
+  const hh=document.createElement('h3');hh.append('国有林 '+kkLin(p.n));
+  if(p.ho){const c=document.createElement('span');c.className='chip ho';c.textContent=kkHo(p.ho);hh.append(c)}
+  s.append(hh);
+  const rows=[];
+  if(p.ha!=null)rows.push(['面積',p.ha+' ha']);
+  if(p.rs)rows.push(['林種',`${KK_RS[p.rs]||p.rs}（${p.rs}）`]);
+  (p.sp||[]).forEach((x,i)=>rows.push([(p.sp.length>1?`樹種${i+1}`:'樹種'),`${x[0]==='他Ｌ'?'その他広葉樹（他Ｌ）':x[0]}${x[1]?`　${x[1]}年生（${Math.ceil(Number(x[1])/5)}齢級）`:''}`]));
+  if(p.vol!=null)rows.push(['材積',Number(p.vol).toLocaleString()+' m³']);
+  if(p.kt)rows.push(['機能類型',p.kt]);
+  if(p.kn)rows.push(['国有林名',p.kn]);
+  if(p.tan)rows.push(['担当区',p.tan]);
+  rows.push(['管理',CFG.kkOffice]);
+  const dl=document.createElement('dl');
+  rows.forEach(([k,v])=>{const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=v;dl.append(dt,dd)});
+  s.append(dl);box.append(s);
+  const cr=document.createElement('div');cr.className='credit';cr.textContent='出典：国土数値情報（国有林野データ）（国土交通省）を加工して作成';box.append(cr);
+}
+function renderForest(p){
+  const box=document.getElementById('s-forest');box.replaceChildren();
+  const recs=forestOf(p);
+  const ttl=document.createElement('div');ttl.className='secttl';ttl.textContent='森林簿';box.append(ttl);
+  const cr=document.createElement('div');cr.className='credit';cr.textContent='この成果品は、鹿児島県森林資源情報データ（ダウンロード）から作成したものである';
+  if(!forestLoaded){
+    const n=document.createElement('div');n.className='nof';
+    n.append('森林簿が読み込まれていません。鹿児島県のサイトから、'+CFG.csvHint+'をダウンロードして読み込んでください。一度読み込めば、この端末に保存されます。');
+    const r=document.createElement('div');r.className='frow';
+    const b=document.createElement('span');b.className='fwrap';const bs=document.createElement('span');bs.className='fbtn';bs.textContent='CSVを読み込む';const bi=document.createElement('input');bi.type='file';bi.accept='.csv,text/csv,text/comma-separated-values,application/csv,application/vnd.ms-excel,text/plain';bi.multiple=true;bi.className='fover';bi.setAttribute('aria-label','森林簿CSVを選ぶ');bi.addEventListener('change',onForestFiles);b.append(bs,bi);
+    const a=document.createElement('a');a.href='https://www.pref.kagoshima.jp/ad12/shinrin-open.html';a.target='_blank';a.rel='noopener';a.textContent='県のダウンロードページ';
+    r.append(b,a);n.append(r);box.append(n);return}
+  if(!recs){const n=document.createElement('div');n.className='nof';n.textContent='この地番は森林簿に載っていません。森林以外の土地か、森林簿と地図で地番の表し方が違う可能性があります。';box.append(n);return}
+  recs.forEach(r=>{
+    const s=document.createElement('div');s.className='fr';
+    const h=document.createElement('h3');h.append(document.createTextNode('林小班 '+r.k));
+    if(r.az){const a=document.createElement('span');a.className='az';a.textContent=r.az;h.append(a)}
+    if(r.ho){const c=document.createElement('span');c.className='chip ho';c.textContent=r.ho+'保安林';h.append(c)}
+    s.append(h);
+    const rows=[];
+    if(r.a!=null)rows.push(['面積',r.a+' ha']);
+    (r.sp||[]).forEach((x,i)=>{const [t,sp,age,kyu,mix]=x;
+      rows.push([(r.sp.length>1?`樹種${i+1}`:'樹種'),[t,sp].filter(Boolean).join('・')+(age?`　${age}年生`:'')+(kyu?`（${kyu}齢級）`:'')+(r.sp.length>1&&mix?`　${mix}割`:'')])});
+    if(r.v!=null)rows.push(['蓄積',r.v.toLocaleString()+' m³']);
+    if(r.own)rows.push(['所有形態',r.own]);
+    if(r.kind)rows.push(['森林の種類',r.kind]);
+    if(r.m)rows.push(['施業方法',r.m]);
+    if(r.chi)rows.push(['地位',r.chi]);
+    if(r.hw)rows.push(['施業履歴',[r.hy&&(r.hy+'年度'),r.hw].filter(Boolean).join('　')]);
+    if(r.fn){const L=['木材生産','水源かん養','山地災害防止','生活環境保全','保健文化'];
+      const hi=r.fn.map((v,i)=>v==='高'?L[i]:null).filter(Boolean);rows.push(['機能「高」',hi.length?hi.join('、'):'なし'])}
+    const dl=document.createElement('dl');
+    rows.forEach(([k,v])=>{const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=v;dl.append(dt,dd)});
+    s.append(dl);box.append(s);
+  });
+  box.append(cr);
+  const rl=document.createElement('div');rl.className='frow freload';
+  const w=document.createElement('span');w.className='fwrap';const ws=document.createElement('span');ws.className='fbtn';ws.textContent='森林簿CSVを読み込み直す';
+  const wi=document.createElement('input');wi.type='file';wi.accept=document.getElementById('ffile').accept;wi.multiple=true;wi.className='fover';wi.setAttribute('aria-label','森林簿CSVを選ぶ');wi.addEventListener('change',onForestFiles);w.append(ws,wi);
+  const cnt=document.createElement('span');cnt.className='fcount';cnt.textContent=`読込済み ${countRows(forest).toLocaleString()}件・県の更新時に使います`;
+  rl.append(w,cnt);box.append(rl);
+}
+function openSheet(layer){
+  const prev=selected;selected=layer;if(prev)resetL(prev);layer.setStyle(styleOf(layer));layer.bringToFront();
+  const p=layer.feature.properties;currentKey=keyOf(p);
+  const kk=!!p.__kk;
+  document.getElementById('tab-forest').firstChild.textContent=kk?'国有林':'森林簿';
+  document.getElementById('tab-bassai').hidden=kk;
+  document.querySelector('#sheet .areas').hidden=kk;
+  document.querySelector('#sheet .mapinfo').hidden=kk;
+  if(kk){
+    document.getElementById('s-chiban').textContent=kkLin(p.n);
+    document.getElementById('s-oaza').textContent=['国有林',p.kn,p.tan&&`（${p.tan}担当区）`].filter(Boolean).join(' ');
+    renderKK(p);
+  }else{
+  document.getElementById('s-chiban').textContent=(chibanOf(p)||'地番不明')+' 番';
+  const fr=forestOf(p),az=fr&&[...new Set(fr.map(r=>r.az).filter(Boolean))].join('・');
+  document.getElementById('s-oaza').textContent=[oazaOf(p),az].filter(Boolean).join(' ');
+  const a=areaM2(layer);
+  curArea=a;document.getElementById('s-area').innerHTML='約 '+fmtArea(a);
+  document.getElementById('chiseki').value=store.get(currentKey,'chiseki');updateRatio();
+  const rows=[['図上面積',`${Math.round(a).toLocaleString()} m²`],
+    ['精度区分',pick(p,['精度区分'])||'—'],
+    ['座標の求め方',pick(p,['座標値種別'])||'—']];
+  const dl=document.getElementById('s-info');dl.replaceChildren();
+  rows.forEach(([k,v])=>{const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=v;dl.append(dt,dd)});
+  renderForest(p);
+  const b=bassaiRaw(p)||{};
+  BF.forEach(k=>document.getElementById('b-'+k).value=b[k]||'');bDelRow();
+  }
+  rkClose();renderRireki();
+  document.getElementById('memo').value=store.get(currentKey);
+  document.getElementById('m-label').value=mlabelOf(p);
+  document.getElementById('saved').textContent='この端末に保存されます';
+  const sh=document.getElementById('sheet');sh.hidden=false;setMin(false);
+  updateDots();setTab(kk&&curTab==='bassai'?'forest':curTab);fitMemo();
+}
+document.getElementById('s-close').onclick=()=>{document.getElementById('sheet').hidden=true;if(selected){const s=selected;selected=null;resetL(s)}};
+let ct;document.getElementById('chiseki').addEventListener('input',e=>{updateRatio();clearTimeout(ct);const k=currentKey,v=e.target.value.trim();
+  ct=setTimeout(()=>{if(!store.set(k,v,'chiseki'))toast('地積を保存できませんでした（ブラウザの設定を確認してください）')},500)});
+let lt2;document.getElementById('m-label').addEventListener('input',e=>{clearTimeout(lt2);const layer=selected,k=currentKey,v=e.target.value.trim();if(!layer)return;
+  lt2=setTimeout(()=>{if(!store.set(k,v,'mlabel')){toast('保存できませんでした（ブラウザの設定を確認してください）');return}applyLabel(layer);updateDots();
+    if(v&&!lblOn)toast('上の「メモ表示」ボタンが切れているため、地図に文字が出ていません');
+    else if(v&&map.getZoom()<LABEL_Z)toast('地図をもう少し拡大すると、文字が表示されます')},400)});
+let mt;document.getElementById('memo').addEventListener('input',e=>{clearTimeout(mt);const k=currentKey,v=e.target.value;
+  mt=setTimeout(()=>{document.getElementById('saved').textContent=store.set(k,v)?'保存しました':'保存できませんでした（ブラウザの設定を確認してください）';updateDots()},500)});
+document.getElementById('memo').addEventListener('input',fitMemo);
+// ---- 施業履歴（地番ごとに複数件、端末に保存） ----
+function rkGet(k){try{const a=JSON.parse(store.get(k,'rireki')||'[]');return Array.isArray(a)?a:[]}catch(e){return[]}}
+function rkSet(k,a){return store.set(k,a.length?JSON.stringify(a):'','rireki')}
+const rkSort=a=>a.slice().sort((x,y)=>(y.date||'').localeCompare(x.date||'')||(y.upd||'').localeCompare(x.upd||''));
+let rkEdit=null; // 編集中の記録のid（新規はnull）
+function rkWhoList(){ // 入力したことのある実施者を候補に出す
+  const s=new Set();try{for(let i=0;i<LS.length;i++){const k=LS.key(i);if(k.startsWith('rireki:'))JSON.parse(LS.getItem(k)||'[]').forEach(e=>e.who&&s.add(e.who))}}catch(e){}
+  const dl=document.getElementById('rk-whos');dl.replaceChildren(...[...s].slice(0,30).map(v=>{const o=document.createElement('option');o.value=v;return o}))}
+function renderRireki(){
+  if(!selected)return;const p=selected.feature.properties,list=rkSort(rkGet(keyOf(p)));
+  const box=document.getElementById('rk-list');box.replaceChildren();
+  if(!list.length){const d=document.createElement('div');d.className='rkempty';d.textContent='この地番の施業履歴はまだありません。';box.append(d)}
+  list.forEach(e=>{
+    const it=document.createElement('div');it.className='rk';
+    const l1=document.createElement('div');l1.className='l1';
+    const dt=document.createElement('span');dt.className='dt';dt.textContent=(e.date||'').replace(/-/g,'/');
+    const wk=document.createElement('span');wk.className='wk';wk.textContent=e.work||'（作業未入力）';
+    l1.append(dt,wk);if(e.area){const ar=document.createElement('span');ar.className='ar';ar.textContent=e.area+' ha';l1.append(ar)}
+    it.append(l1);
+    const sub=[e.jigyo,e.who].filter(Boolean).join('・');if(sub){const l2=document.createElement('div');l2.className='l2';l2.textContent=sub;it.append(l2)}
+    if(e.note){const nt=document.createElement('div');nt.className='nt';nt.textContent=e.note;it.append(nt)}
+    const acts=document.createElement('div');acts.className='acts';
+    const ed=document.createElement('button');ed.type='button';ed.textContent='修正';ed.onclick=()=>rkOpen(e);
+    const del=document.createElement('button');del.type='button';del.className='del';del.textContent='削除';
+    del.onclick=()=>{ // 確認は画面の中で行う
+      acts.replaceChildren();const q=document.createElement('span');q.className='l2';q.textContent='この記録を削除しますか？';
+      const y=document.createElement('button');y.type='button';y.className='del';y.textContent='削除する';
+      y.onclick=()=>{const k=keyOf(p);if(!rkSet(k,rkGet(k).filter(x=>x.id!==e.id))){toast('削除できませんでした');return}if(rkEdit===e.id)rkClose();renderRireki();updateDots();toast('施業履歴を削除しました')};
+      const n=document.createElement('button');n.type='button';n.textContent='やめる';n.onclick=renderRireki;acts.append(q,y,n)};
+    acts.append(ed,del);it.append(acts);box.append(it)});
+  // 森林簿に載っている施業履歴（参考）
+  const ref=document.getElementById('rk-ref');ref.replaceChildren();
+  const recs=(forestOf(p)||[]).filter(r=>r.hw);
+  if(recs.length){const d=document.createElement('div');d.className='rkref';const b=document.createElement('b');b.textContent='森林簿の施業履歴（参考）';d.append(b);
+    recs.forEach(r=>{const x=document.createElement('div');x.textContent=`林小班 ${r.k}：${[r.hy&&(r.hy+'年度'),r.hw].filter(Boolean).join(' ')}`;d.append(x)});ref.append(d)}
+}
+function rkOpen(e){
+  rkEdit=e?e.id:null;const f=document.getElementById('rk-form');f.hidden=false;document.getElementById('rk-add').hidden=true;
+  const today=new Date();const iso=new Date(today.getTime()-today.getTimezoneOffset()*60000).toISOString().slice(0,10);
+  document.getElementById('rk-date').value=e?e.date||'':iso;
+  ['area','work','jigyo','who','note'].forEach(k=>document.getElementById('rk-'+k).value=e?e[k]||'':'');
+  rkWhoList();document.getElementById('rk-work').focus({preventScroll:true});f.scrollIntoView({block:'nearest'});
+}
+function rkClose(){rkEdit=null;document.getElementById('rk-form').reset();document.getElementById('rk-form').hidden=true;document.getElementById('rk-add').hidden=false}
+document.getElementById('rk-add').onclick=()=>rkOpen(null);
+document.getElementById('rk-cancel').onclick=rkClose;
+document.getElementById('rk-form').addEventListener('submit',ev=>{
+  ev.preventDefault();if(!selected)return;
+  const v=k=>document.getElementById('rk-'+k).value.trim();
+  const area=v('area').normalize('NFKC').replace(/ha$/i,'').trim();
+  if(area&&!/^\d+(\.\d+)?$/.test(area)){toast('面積は数字で入れてください（例：0.85）');return}
+  const k=keyOf(selected.feature.properties),list=rkGet(k);
+  const e={id:rkEdit||('r'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)),date:v('date'),work:v('work'),area,jigyo:v('jigyo'),who:v('who'),note:v('note'),upd:new Date().toISOString()};
+  const i=list.findIndex(x=>x.id===e.id);if(i>=0)list[i]=e;else list.push(e);
+  if(!rkSet(k,list)){toast('保存できませんでした（ブラウザの設定を確認してください）');return}
+  const was=rkEdit;rkClose();renderRireki();updateDots();toast(was?'施業履歴を修正しました':'施業履歴を記録しました');
+});
+// ---- パソコン表示：右パネルの上端を地図の上端にそろえる ----
+function setTopH(){const m=document.getElementById('maparea');if(m)document.documentElement.style.setProperty('--toph',m.getBoundingClientRect().top+'px')}
+window.addEventListener('resize',setTopH);setTopH();
+// ---- カードのタブと最小化 ----
+const TABS=['forest','rireki','bassai','memo'];
+let curTab='forest';try{curTab=LS.getItem('ui:tab')||'forest'}catch(e){}
+if(!TABS.includes(curTab))curTab='forest';
+function setTab(t){curTab=t;TABS.forEach(k=>{document.getElementById('tab-'+k).setAttribute('aria-selected',k===t);document.getElementById('p-'+k).hidden=k!==t});
+  try{LS.setItem('ui:tab',t)}catch(e){} if(t==='memo')fitMemo()}
+TABS.forEach(k=>document.getElementById('tab-'+k).onclick=()=>setTab(k));
+function setMin(m){const sh=document.getElementById('sheet');sh.classList.toggle('min',m);
+  document.getElementById('s-head').setAttribute('aria-expanded',!m);
+  const b=document.getElementById('s-min');b.textContent=m?'▴':'▾';b.setAttribute('aria-label',m?'大きくする':'小さくする')}
+document.getElementById('s-min').onclick=()=>setMin(!document.getElementById('sheet').classList.contains('min'));
+document.getElementById('s-head').onclick=()=>setMin(!document.getElementById('sheet').classList.contains('min'));
+function fitMemo(){const t=document.getElementById('memo');t.style.height='auto';t.style.height=(t.scrollHeight+2)+'px'}
+function updateDots(){if(!selected)return;const p=selected.feature.properties;
+  document.getElementById('dot-bassai').hidden=!bassaiRaw(p);
+  document.getElementById('dot-rireki').hidden=!rkGet(keyOf(p)).length;
+  document.getElementById('dot-memo').hidden=!(store.get(keyOf(p))||mlabelOf(p))}
+
+// ---- 地番データ：大字ごとに、画面に入ったときだけ読み込む ----
+const index=[];let districts=[];const loading={};
+const MINZ=14;
+// ---- 国有林（国土数値情報「国有林野」からこの町の分を取り出したもの） ----
+// 国有林は通常は表示せず、「国有林」ボタンで表示する（Groundyと同じ方式）
+let kkLayer=null,kkRoads=null,kkLoading=null,kkOn=false;try{kkOn=LS.getItem('ui:kokuyu2')==='on'}catch(e){}
+const KK_RS={'単':'育成単層林','複':'育成複層林','天':'天然生林','育':'育成天然林','人伐':'人工林伐採跡地'};
+const kkLin=n=>{const a=String(n||'').split('_');return a.length===3?`${a[0]}林班 ${a[2]}小班`:(n||'')};
+const KK_HO={'水涵保':'水源かん養保安林','土流保':'土砂流出防備保安林','土崩保':'土砂崩壊防備保安林'};
+const kkHo=s=>String(s||'').split('・').map(x=>KK_HO[x]||x).join('・');
+const kkName=s=>({'スギ':'すぎ','ヒノキ':'ひのき'}[s]||s);
+function kkTint(p){
+  const s=(p.sp||[])[0];if(!s)return null;
+  if(tint==='species'){const sp=kkName(s[0]);if(sp==='すぎ'||sp==='ひのき')return SPECIES.find(x=>x[0]===sp)[1];return /[ＬL]|クヌギ|イス|シイ|クス|ナラ|カシ/.test(s[0])?SPECIES.find(x=>x[0]==='広葉樹')[1]:'#8b7fb8'}
+  if(tint==='age'&&s[1]){const k=Math.ceil(Number(s[1])/5);if(k>0)return AGES.find(x=>x[2](k))[1]}
+  return null;
+}
+function kkStyle(f){const c=filt((tint==='species'||tint==='age')?kkTint(f.properties):tint==='rireki'?rirekiColor(f.properties):null);
+  if(selected&&selected.feature===f)return{color:'#facc15',weight:3,opacity:1,dashArray:null,fillColor:c||'#facc15',fillOpacity:c?.75:.25};
+  if(mlabelOf(f.properties))return{color:'#dc2626',weight:2.5,opacity:1,dashArray:'6 4',fillColor:c||'#dc2626',fillOpacity:c?.6:.22};
+  return c?{color:'#0e7490',weight:1,opacity:.8,fillColor:c,fillOpacity:.55}:{color:'#0e7490',weight:1.2,opacity:.8,dashArray:'4 3',fillColor:'#0e7490',fillOpacity:.07}}
+function kkLoad(){
+  if(kkLoading)return kkLoading;
+  return kkLoading=fetch('kokuyu/index.json').then(r=>r.json()).then(m=>Promise.all(['units','roads'].map(n=>fetch(`kokuyu/${n}.geojson?v=${m.v}`).then(r=>r.json()))))
+    .then(([u,rd])=>{
+      kkRoads=L.geoJSON(rd,{style:{color:'#b45309',weight:2,opacity:.85},interactive:false});
+      kkLayer=L.geoJSON(u,{style:kkStyle,onEachFeature:(f,l)=>{f.properties.__kk=true;l.on('click',()=>openSheet(l));applyLabel(l)}});
+      map.attributionControl.addAttribution('国有林：国土数値情報（国有林野データ）（国土交通省）を加工');
+      kkApply();
+    }).catch(()=>{kkLoading=null;toast('国有林のデータを読み込めませんでした')});
+}
+function kkApply(){
+  document.getElementById('kk').setAttribute('aria-pressed',kkOn);
+  // 民有林（地番）と同じ拡大率から表示する
+  if(!kkLayer){if(kkOn&&map.getZoom()>=MINZ-1)kkLoad();return}
+  if(kkOn&&map.getZoom()>=MINZ){if(!map.hasLayer(kkLayer)){kkLayer.addTo(map);kkRoads.addTo(map);kkLayer.bringToBack()}}
+  else{if(map.hasLayer(kkLayer)){kkLayer.remove();kkRoads.remove()}}
+}
+document.getElementById('kk').onclick=()=>{kkOn=!kkOn;zoomHint();try{LS.setItem('ui:kokuyu2',kkOn?'on':'off')}catch(e){}kkApply();
+  toast(kkOn?(map.getZoom()<MINZ?'地図を拡大すると国有林が表示されます':'国有林を表示しました（水色の点線、茶色の線は林道）'):'国有林を隠しました')};
+map.on('zoomend',kkApply);
+function zoomHint(){const z=document.getElementById('zhint');z.hidden=map.getZoom()>=MINZ;z.textContent=kkOn?'地図を拡大すると、民有林（地番）と国有林の境界が表示されます':'地図を拡大すると、地番の境界が表示されます'}
+map.on('zoomend',zoomHint);
+kkApply();
+parcels=L.geoJSON(null,{style:styleFor,onEachFeature:(f,l)=>{l.on('click',()=>openSheet(l));index.push(l);applyLabel(l)}}).addTo(map);
+function loadDistrict(d){
+  if(loading[d.file])return loading[d.file];
+  toast(`${d.oaza} の地番を読み込んでいます…`);
+  return loading[d.file]=fetch('data/'+d.file+(d.v?'?v='+d.v:'')).then(r=>{if(!r.ok)throw 0;return r.json()})
+    .then(gj=>{parcels.addData(gj);toast(`${d.oaza}：${d.count.toLocaleString()} 筆を表示`)})
+    .catch(()=>{delete loading[d.file];toast(`${d.oaza} の読み込みに失敗しました。通信状態を確認してください`)});
+}
+function bboxBounds(b){return L.latLngBounds([b[1],b[0]],[b[3],b[2]])}
+function refresh(){
+  const z=map.getZoom(),vb=map.getBounds();
+  if(z<MINZ){if(map.hasLayer(parcels))map.removeLayer(parcels);return}
+  if(!map.hasLayer(parcels))parcels.addTo(map);
+  districts.forEach(d=>{if(vb.intersects(bboxBounds(d.bbox)))loadDistrict(d)});
+}
+fetch('data/index.json').then(r=>{if(!r.ok)throw 0;return r.json()}).then(list=>{
+  districts=list;
+  const all=list.reduce((b,d)=>b.extend(bboxBounds(d.bbox)),L.latLngBounds([]));
+  map.fitBounds(all);
+  map.attributionControl.addAttribution('地番：法務省 登記所備付地図データ（G空間情報センター、AIGID変換）／森林簿：鹿児島県');
+  map.on('moveend',refresh);refresh();
+  zoomHint();
+}).catch(()=>{document.getElementById('empty').hidden=false});
+
+document.getElementById('search').addEventListener('submit',async e=>{
+  e.preventDefault();const q=document.getElementById('q').value.trim().replace(/番(地)?$/,'');
+  if(!q)return; if(!districts.length){toast('地番データが入っていません');return}
+  toast('検索しています…');
+  await Promise.all(districts.map(loadDistrict));
+  toastEl.hidden=true;
+  const qq=nz(q);
+  const exact=index.filter(l=>nz(chibanOf(l.feature.properties))===qq);
+  const branch=index.filter(l=>nz(chibanOf(l.feature.properties)).startsWith(qq+'-'));
+  const hits=exact.concat(branch);
+  if(!hits.length){toast(`「${q}」は見つかりませんでした`);return}
+  if(hits.length===1){goTo(hits[0]);return}
+  showCands(q,exact,branch);
+});
+function goTo(l){closeCands();map.fitBounds(l.getBounds(),{maxZoom:18});openSheet(l)}
+const cands=document.getElementById('cands');
+function closeCands(){cands.hidden=true;cands.replaceChildren()}
+function candSummary(p){
+  const r=forestOf(p);if(!r)return '';
+  const m=mainRec(r),sp=(m.sp||[])[0];
+  return sp?[sp[1]||sp[0],sp[2]?sp[2]+'年生':''].filter(Boolean).join(' '):(m.own||'');
+}
+function showCands(q,exact,branch){
+  cands.replaceChildren();
+  const head=document.createElement('div');head.className='chead';
+  head.append(`「${q}」の候補 ${exact.length+branch.length} 件`);
+  const x=document.createElement('button');x.type='button';x.className='cx';x.textContent='×';x.setAttribute('aria-label','候補を閉じる');x.onclick=closeCands;head.append(x);
+  cands.append(head);
+  const byKey=(a,b)=>{const pa=a.feature.properties,pb=b.feature.properties;
+    return oazaOf(pa).localeCompare(oazaOf(pb),'ja')||chibanOf(pa).localeCompare(chibanOf(pb),'ja',{numeric:true})};
+  const group=(title,list)=>{
+    if(!list.length)return;
+    const t=document.createElement('div');t.className='cgrp';t.textContent=title;cands.append(t);
+    list.sort(byKey).slice(0,100).forEach(l=>{
+      const p=l.feature.properties,b=document.createElement('button');b.type='button';b.className='citem';
+      const az=(forestOf(p)||[]).map(r=>r.az).filter(Boolean)[0]||'';
+      const a=document.createElement('span');a.className='cno';a.textContent=chibanOf(p);
+      const o=document.createElement('span');o.className='coz';o.textContent=[oazaOf(p),az].filter(Boolean).join(' ');
+      const s=document.createElement('span');s.className='csum';
+      const ar=areaM2(l);s.textContent=[candSummary(p),ar>=10000?(ar/10000).toFixed(2)+' ha':Math.round(ar).toLocaleString()+' m²'].filter(Boolean).join('・');
+      if(bassaiOf(p)){const k=document.createElement('span');k.className='cbas';k.textContent='伐採届';o.append(' ',k)}
+      b.append(a,o,s);b.onclick=()=>goTo(l);cands.append(b);
+    });
+    if(list.length>100){const m=document.createElement('div');m.className='cgrp';m.textContent=`ほか ${list.length-100} 件（地番をもっと詳しく入れてください）`;cands.append(m)}
+  };
+  group('一致する地番',exact);
+  group(`「${q}-」で始まる地番`,branch);
+  cands.hidden=false;cands.scrollTop=0;
+}
+map.on('click',closeCands);
+
+// ---- 現在地 ----
+let watchId=null,me=null,acc=null,first=true;const btn=document.getElementById('locate');
+btn.onclick=()=>{
+  if(watchId!==null){navigator.geolocation.clearWatch(watchId);watchId=null;btn.classList.remove('on');me&&me.remove();acc&&acc.remove();me=acc=null;return}
+  if(!navigator.geolocation){toast('この端末では現在地が使えません');return}
+  btn.classList.add('on');first=true;toast('現在地を取得しています…');
+  watchId=navigator.geolocation.watchPosition(pos=>{
+    const ll=[pos.coords.latitude,pos.coords.longitude],r=pos.coords.accuracy;
+    if(!me){acc=L.circle(ll,{radius:r,color:'#2563eb',weight:1,fillOpacity:.12}).addTo(map);
+      me=L.circleMarker(ll,{radius:8,color:'#fff',weight:3,fillColor:'#2563eb',fillOpacity:1}).addTo(map)}
+    else{me.setLatLng(ll);acc.setLatLng(ll).setRadius(r)}
+    if(first){map.setView(ll,Math.max(map.getZoom(),16));first=false;toast(`現在地（誤差 約${Math.round(r)}m）`)}
+  },err=>{toast(err.code===1?'位置情報の利用が許可されていません。ブラウザの設定で許可してください':'現在地を取得できませんでした');
+    btn.classList.remove('on');watchId=null},{enableHighAccuracy:true,maximumAge:5000,timeout:20000});
+};
+
+// ---- 記録の受け渡し（メモ・地積・伐採届をファイルで別の端末へ） ----
+const REC_NS=['memo','mlabel','chiseki','bassai','rireki'];
+function collectRecords(){const items={};try{for(let i=0;i<LS.length;i++){const k=LS.key(i);if(REC_NS.some(n=>k.startsWith(n+':')))items[k]=LS.getItem(k)}}catch(e){}return items}
+function recSummary(items){const c={memo:0,mlabel:0,chiseki:0,bassai:0,rireki:0};Object.entries(items).forEach(([k,v])=>{const n=k.split(':')[0];if(n==='rireki'){try{c.rireki+=JSON.parse(v).length}catch(e){}}else if(n in c)c[n]++});return `メモ表示 ${c.mlabel}件・メモ内部記録 ${c.memo}件・地積 ${c.chiseki}件・伐採届 ${c.bassai}件・施業履歴 ${c.rireki}件`}
+function recFile(){const items=collectRecords();const d=new Date();const stamp=d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'-'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0');
+  const body=JSON.stringify({app:CFG.recApp,kind:'records',version:1,exportedAt:d.toISOString(),items},null,1);
+  return {file:new File([body],`${CFG.filePrefix}-${stamp}.json`,{type:'application/json'}),txt:new File([body],`${CFG.filePrefix}-${stamp}.txt`,{type:'text/plain'}),count:Object.keys(items).length,items}}
+function rpMsg(t){const m=document.getElementById('rp-msg');m.textContent=t;m.hidden=!t}
+function openRec(){rpMsg('');document.getElementById('rp-sum').textContent='この端末の記録：'+recSummary(collectRecords());document.getElementById('recp').hidden=false}
+document.getElementById('rec-open').onclick=openRec;
+document.getElementById('rec-close').onclick=()=>document.getElementById('recp').hidden=true;
+document.getElementById('recp').addEventListener('click',e=>{if(e.target.id==='recp')e.target.hidden=true});
+const canShareFiles=(()=>{try{return !!(navigator.share&&navigator.canShare&&navigator.canShare({files:[new File(['x'],'t.txt',{type:'text/plain'})]}))}catch(e){return false}})();
+document.getElementById('rec-share').hidden=!canShareFiles;
+document.getElementById('rec-share').onclick=async()=>{const r=recFile();if(!r.count){rpMsg('送る記録がまだありません');return}
+  // スマホの共有で送れるよう、中身はそのままテキストファイル（.txt）として渡す
+  const f=r.txt;rpMsg('共有の画面を開いています…');
+  try{
+    if(navigator.canShare&&!navigator.canShare({files:[f]}))throw Object.assign(new Error('x'),{name:'NotSupported'});
+    await navigator.share({files:[f],title:'森林管理システムの記録'});rpMsg(`${r.count}件の記録を共有しました`)
+  }catch(e){
+    if(e&&e.name==='AbortError'){rpMsg('共有を取りやめました');return}
+    saveRec(r);rpMsg(`共有できなかったので、ダウンロードフォルダに「${r.file.name}」を保存しました。そのファイルをLINEやメールで送ってください。（理由：${e&&e.name||'不明'}）`);
+  }};
+function saveRec(r){const a=document.createElement('a');a.href=URL.createObjectURL(r.file);a.download=r.file.name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000)}
+document.getElementById('rec-save').onclick=()=>{const r=recFile();if(!r.count){rpMsg('保存する記録がまだありません');return}
+  saveRec(r);rpMsg(`ダウンロードフォルダに「${r.file.name}」を保存しました`)};
+document.getElementById('rec-file').addEventListener('change',async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  try{const o=JSON.parse(await f.text());
+    if(!o||o.app!==CFG.recApp||!o.items)throw new Error('このアプリの記録ファイルではないようです');
+    let add=0,upd=0;const cur=collectRecords();
+    for(const [k,v] of Object.entries(o.items)){if(!REC_NS.some(n=>k.startsWith(n+':'))||typeof v!=='string')continue;
+      if(k.startsWith('rireki:')){ // 施業履歴は1件ずつ合わせる（同じ記録は新しい内容に、無い記録は追加）
+        let inc=[],mine=[];try{inc=JSON.parse(v)}catch(_){continue}try{mine=JSON.parse(cur[k]||'[]')}catch(_){}
+        let ch=false;for(const e of inc){if(!e||!e.id)continue;const i=mine.findIndex(x=>x.id===e.id);
+          if(i<0){mine.push(e);add++;ch=true}else if(JSON.stringify(mine[i])!==JSON.stringify(e)&&(e.upd||'')>=(mine[i].upd||'')){mine[i]=e;upd++;ch=true}}
+        if(ch){try{LS.setItem(k,JSON.stringify(mine))}catch(_){throw new Error('この端末に保存できませんでした（空き容量を確認してください）')}}
+        continue}
+      if(cur[k]===v)continue; if(k in cur)upd++;else add++; try{LS.setItem(k,v)}catch(_){throw new Error('この端末に保存できませんでした（空き容量を確認してください）')}}
+    migrateLabels();
+    if(parcels){parcels.eachLayer(l=>{applyLabel(l)});parcels.setStyle(styleFor)}
+    if(selected)openSheet(selected);
+    document.getElementById('rp-sum').textContent='この端末の記録：'+recSummary(collectRecords());
+    rpMsg(add+upd?`取り込みました：新規 ${add}件・上書き ${upd}件`:'新しい記録はありませんでした（すでに同じ内容です）');
+  }catch(err){rpMsg(err.message||'記録を取り込めませんでした')}
+});
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))}</script>
+</body>
+</html>
