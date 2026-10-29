@@ -94,6 +94,15 @@ table.sb td.n{text-align:right}
 .pbtn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
 .credit{font-size:11px;color:var(--muted);margin-top:8px}
 :focus-visible{outline:3px solid var(--sel);outline-offset:2px}
+/* パソコンなど横に広い画面：地図を左、集計・地番カードを右に並べる */
+@media (min-width:900px){
+  body{display:grid;grid-template-columns:minmax(0,1fr) 440px;grid-template-rows:auto auto minmax(0,1fr);grid-template-areas:"h h" "b b" "m p"}
+  header{grid-area:h} #bar{grid-area:b} #maparea{grid-area:m}
+  #panel{grid-area:p;max-height:none;border-top:0;border-left:1px solid var(--line);padding:16px 18px}
+  table.sum{font-size:14px}
+  .ptop h2{font-size:17px}
+  #cond{padding-top:72px}
+}
 </style>
 </head>
 <body>

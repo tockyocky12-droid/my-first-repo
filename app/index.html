@@ -190,6 +190,21 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
 .lbtn{margin-left:auto;font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer;white-space:nowrap}
 .lbtn[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
 #tint{flex-wrap:wrap}
+/* パソコンなど横に広い画面：地番カードを右側の縦長パネルにし、地図を広く見せる */
+@media (min-width:900px){
+  body{font-size:15px}
+  #search{padding-right:14px}
+  #search input{max-width:520px}
+  #sheet{left:auto;right:0;top:var(--toph,142px);bottom:0;width:420px;max-height:none;border-radius:0;border-top:0;border-left:1px solid var(--line);box-shadow:-4px 0 16px rgba(0,0,0,.12);padding-block:14px 16px;padding-left:18px;padding-right:18px}
+  #sheet.min{top:auto;bottom:0;width:420px;border-top:1px solid var(--line);border-radius:14px 0 0 0}
+  body:has(#sheet:not([hidden]):not(.min)) #locate{right:calc(420px + 14px)}
+  body:has(#sheet:not([hidden]):not(.min)) .leaflet-control-attribution{margin-right:420px}
+  #cands{right:auto;width:440px;max-height:75%;border-right:1px solid var(--line);border-radius:0 0 12px 0}
+  #legend{font-size:13px}
+  #tint{gap:10px}
+  .tabs button{font-size:14px}
+  textarea{max-height:40vh}
+}
 </style>
 </head>
 <body>
@@ -686,6 +701,9 @@ document.getElementById('rk-form').addEventListener('submit',ev=>{
   if(!rkSet(k,list)){toast('保存できませんでした（ブラウザの設定を確認してください）');return}
   const was=rkEdit;rkClose();renderRireki();updateDots();toast(was?'施業履歴を修正しました':'施業履歴を記録しました');
 });
+// ---- パソコン表示：右パネルの上端を地図の上端にそろえる ----
+function setTopH(){const m=document.getElementById('maparea');if(m)document.documentElement.style.setProperty('--toph',m.getBoundingClientRect().top+'px')}
+window.addEventListener('resize',setTopH);setTopH();
 // ---- カードのタブと最小化 ----
 const TABS=['forest','rireki','bassai','memo'];
 let curTab='forest';try{curTab=localStorage.getItem('ui:tab')||'forest'}catch(e){}
