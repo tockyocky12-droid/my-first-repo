@@ -242,7 +242,7 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
       <p>受け取ったファイル（kinko-kiroku-○○.txt または .json）を選びます。同じ地番の記録は、ファイルの内容で上書きします。この端末にしかない記録は消えません。</p>
       <div class="rp-btns"><span class="fwrap pwrap"><span class="pbtn">ファイルを選んで取り込む</span><input id="rec-file" class="fover" type="file" accept=".json,.txt,application/json,text/plain" aria-label="記録ファイルを選ぶ"></span></div>
     </div>
-    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-29d</span></p>
+    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-29e</span></p>
   </div>
 </div>
 <form id="search" autocomplete="off">
@@ -257,7 +257,7 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
     <button id="t-age" aria-pressed="false">林齢</button>
     <button id="t-rireki" aria-pressed="false">施業</button>
   </div>
-  <button id="kk" class="lbtn kkbtn" type="button" aria-pressed="true">国有林</button>
+  <button id="kk" class="lbtn kkbtn" type="button" aria-pressed="false">国有林</button>
   <button id="lbl" class="lbtn" type="button" aria-pressed="true">メモ表示</button>
   <span class="fwrap"><span id="fload" class="fbtn">森林簿CSVを読み込む</span><input id="ffile" class="fover" type="file" accept=".csv,text/csv,text/comma-separated-values,application/csv,application/vnd.ms-excel,text/plain" multiple aria-label="森林簿CSVを選ぶ"></span>
   <span id="fmiss" class="fmiss" hidden></span>
@@ -777,7 +777,8 @@ function updateDots(){if(!selected)return;const p=selected.feature.properties;
 const index=[];let districts=[];const loading={};
 const MINZ=14;
 // ---- 国有林（国土数値情報「国有林野」から錦江町分を取り出したもの） ----
-let kkLayer=null,kkRoads=null,kkLoading=null,kkOn=true;try{kkOn=localStorage.getItem('ui:kokuyu')!=='off'}catch(e){}
+// 国有林は通常は表示せず、「国有林」ボタンで表示する（Groundyと同じ方式）
+let kkLayer=null,kkRoads=null,kkLoading=null,kkOn=false;try{kkOn=localStorage.getItem('ui:kokuyu2')==='on'}catch(e){}
 const KK_RS={'単':'育成単層林','複':'育成複層林','天':'天然生林','育':'育成天然林','人伐':'人工林伐採跡地'};
 const kkLin=n=>{const a=String(n||'').split('_');return a.length===3?`${a[0]}林班 ${a[2]}小班`:(n||'')};
 const KK_HO={'水涵保':'水源かん養保安林','土流保':'土砂流出防備保安林','土崩保':'土砂崩壊防備保安林'};
@@ -809,10 +810,10 @@ function kkApply(){
   if(kkOn&&map.getZoom()>=MINZ){if(!map.hasLayer(kkLayer)){kkLayer.addTo(map);kkRoads.addTo(map);kkLayer.bringToBack()}}
   else{if(map.hasLayer(kkLayer)){kkLayer.remove();kkRoads.remove()}}
 }
-document.getElementById('kk').onclick=()=>{kkOn=!kkOn;try{localStorage.setItem('ui:kokuyu',kkOn?'on':'off')}catch(e){}kkApply();
+document.getElementById('kk').onclick=()=>{kkOn=!kkOn;zoomHint();try{localStorage.setItem('ui:kokuyu2',kkOn?'on':'off')}catch(e){}kkApply();
   toast(kkOn?(map.getZoom()<MINZ?'地図を拡大すると国有林が表示されます':'国有林を表示しました（水色の点線、茶色の線は林道）'):'国有林を隠しました')};
 map.on('zoomend',kkApply);
-function zoomHint(){document.getElementById('zhint').hidden=map.getZoom()>=MINZ}
+function zoomHint(){const z=document.getElementById('zhint');z.hidden=map.getZoom()>=MINZ;z.textContent=kkOn?'地図を拡大すると、民有林（地番）と国有林の境界が表示されます':'地図を拡大すると、地番の境界が表示されます'}
 map.on('zoomend',zoomHint);
 kkApply();
 parcels=L.geoJSON(null,{style:styleFor,onEachFeature:(f,l)=>{l.on('click',()=>openSheet(l));index.push(l);applyLabel(l)}}).addTo(map);
