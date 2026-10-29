@@ -39,6 +39,7 @@ header h1 small{font-weight:400;color:var(--muted);font-size:12px;margin-left:4p
 .fbtn{font:inherit;font-size:13px;padding:6px 12px;border-radius:8px;border:0;background:var(--accent);color:var(--accent-fg);white-space:nowrap}
 .fover{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:40px;z-index:2}
 .fwrap:focus-within .fbtn{outline:3px solid var(--sel);outline-offset:2px}
+#zhint{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:950;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:12.5px;box-shadow:0 2px 8px rgba(0,0,0,.18);pointer-events:none;max-width:calc(100% - 120px);text-align:center;line-height:1.4}
 #maparea{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
 #map{flex:1;min-height:0}
 #toast{position:fixed;left:50%;transform:translateX(-50%);top:130px;z-index:3000;background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;max-width:90%}
@@ -133,7 +134,7 @@ table.sb td.n{text-align:right}
   <button id="kk" class="hbtn kkbtn" type="button" aria-pressed="true">国有林</button>
   <button id="export" class="hbtn" type="button" hidden>CSV書き出し</button>
 </div>
-<div id="maparea"><div id="map"></div></div>
+<div id="maparea"><div id="map"></div><div id="zhint" class="zhint" hidden>地図を拡大すると、民有林（地番）と国有林の境界が表示されます</div></div>
 <section id="panel" aria-live="polite"></section>
 <div id="toast" hidden></div>
 
@@ -334,9 +335,12 @@ function kkLoad(){if(kkLoading)return kkLoading;
       kkLayer=L.geoJSON(u,{style:kkStyle,onEachFeature:(f,l)=>{f.properties.__kk=true;l.on('click',()=>openKK(l))}});
       map.attributionControl.addAttribution('国有林：国土数値情報（国有林野データ）（国土交通省）を加工');kkApply();if(!selected)showSummary()})
     .catch(()=>{kkLoading=null;toast('国有林のデータを読み込めませんでした')})}
-function kkApply(){document.getElementById('kk').setAttribute('aria-pressed',kkOn);
+function kkApply(){document.getElementById('kk').setAttribute('aria-pressed',kkOn);document.getElementById('zhint').hidden=map.getZoom()>=MINZ;
   if(!kkLayer){if(kkOn)kkLoad();return}
-  if(kkOn){if(!map.hasLayer(kkLayer)){kkLayer.addTo(map);kkRoads.addTo(map);kkLayer.bringToBack()}}else{kkLayer.remove();kkRoads.remove()}}
+  // 民有林（地番）と同じ拡大率から表示する
+  if(kkOn&&map.getZoom()>=MINZ){if(!map.hasLayer(kkLayer)){kkLayer.addTo(map);kkRoads.addTo(map);kkLayer.bringToBack()}}else if(map.hasLayer(kkLayer)){kkLayer.remove();kkRoads.remove()}
+  document.getElementById('zhint').hidden=map.getZoom()>=MINZ}
+map.on('zoomend',()=>{kkApply();document.getElementById('zhint').hidden=map.getZoom()>=MINZ});
 document.getElementById('kk').onclick=()=>{kkOn=!kkOn;try{localStorage.setItem('zoning:kokuyu',kkOn?'on':'off')}catch(e){}kkApply();if(!selected)showSummary();
   toast(kkOn?'国有林を表示しました（水色の点線、茶色の線は林道）':'国有林を隠しました')};
 // 国有林の集計（機能類型別）

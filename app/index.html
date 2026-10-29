@@ -39,6 +39,7 @@ header h1{font-size:16px;margin:0;font-weight:700;flex:1;min-width:0;white-space
 #search{display:flex;gap:6px;padding:8px max(14px,env(safe-area-inset-right,0px)) 8px max(14px,env(safe-area-inset-left,0px));background:var(--panel);border-bottom:1px solid var(--line);z-index:1000}
 #search input{flex:1;min-width:0;font:inherit;font-family:var(--f-data);padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
 #search button{font:inherit;padding:8px 12px;border-radius:8px;border:0;background:var(--accent);color:var(--accent-fg);cursor:pointer}
+#zhint,.zhint{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:950;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:12.5px;box-shadow:0 2px 8px rgba(0,0,0,.18);pointer-events:none;max-width:calc(100% - 120px);text-align:center;line-height:1.4}
 #maparea{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
 #map{flex:1;min-height:0}
 #cands{position:absolute;top:0;left:0;right:0;z-index:1050;max-height:70%;overflow:auto;background:var(--panel);border-bottom:1px solid var(--line);box-shadow:0 6px 16px rgba(0,0,0,.2);
@@ -241,7 +242,7 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
       <p>受け取ったファイル（kinko-kiroku-○○.txt または .json）を選びます。同じ地番の記録は、ファイルの内容で上書きします。この端末にしかない記録は消えません。</p>
       <div class="rp-btns"><span class="fwrap pwrap"><span class="pbtn">ファイルを選んで取り込む</span><input id="rec-file" class="fover" type="file" accept=".json,.txt,application/json,text/plain" aria-label="記録ファイルを選ぶ"></span></div>
     </div>
-    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-29c</span></p>
+    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-29d</span></p>
   </div>
 </div>
 <form id="search" autocomplete="off">
@@ -261,7 +262,7 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
   <span class="fwrap"><span id="fload" class="fbtn">森林簿CSVを読み込む</span><input id="ffile" class="fover" type="file" accept=".csv,text/csv,text/comma-separated-values,application/csv,application/vnd.ms-excel,text/plain" multiple aria-label="森林簿CSVを選ぶ"></span>
   <span id="fmiss" class="fmiss" hidden></span>
 </div>
-<div id="maparea"><div id="map"></div><div id="cands" hidden role="listbox" aria-label="地番の候補"></div></div>
+<div id="maparea"><div id="map"></div><div id="zhint" class="zhint" hidden>地図を拡大すると、民有林（地番）と国有林の境界が表示されます</div><div id="cands" hidden role="listbox" aria-label="地番の候補"></div></div>
 <div id="legend" hidden></div>
 <button id="locate" aria-label="現在地を表示">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
@@ -803,13 +804,16 @@ function kkLoad(){
 }
 function kkApply(){
   document.getElementById('kk').setAttribute('aria-pressed',kkOn);
-  if(!kkLayer){if(kkOn&&map.getZoom()>=12)kkLoad();return}
-  if(kkOn){if(!map.hasLayer(kkLayer)){kkLayer.addTo(map);kkRoads.addTo(map);kkLayer.bringToBack()}}
-  else{kkLayer.remove();kkRoads.remove()}
+  // 民有林（地番）と同じ拡大率から表示する
+  if(!kkLayer){if(kkOn&&map.getZoom()>=MINZ-1)kkLoad();return}
+  if(kkOn&&map.getZoom()>=MINZ){if(!map.hasLayer(kkLayer)){kkLayer.addTo(map);kkRoads.addTo(map);kkLayer.bringToBack()}}
+  else{if(map.hasLayer(kkLayer)){kkLayer.remove();kkRoads.remove()}}
 }
 document.getElementById('kk').onclick=()=>{kkOn=!kkOn;try{localStorage.setItem('ui:kokuyu',kkOn?'on':'off')}catch(e){}kkApply();
-  toast(kkOn?(map.getZoom()<12?'地図を拡大すると国有林が表示されます':'国有林を表示しました（水色の点線、茶色の線は林道）'):'国有林を隠しました')};
-map.on('zoomend',()=>{if(kkOn&&!kkLayer&&map.getZoom()>=12)kkLoad()});
+  toast(kkOn?(map.getZoom()<MINZ?'地図を拡大すると国有林が表示されます':'国有林を表示しました（水色の点線、茶色の線は林道）'):'国有林を隠しました')};
+map.on('zoomend',kkApply);
+function zoomHint(){document.getElementById('zhint').hidden=map.getZoom()>=MINZ}
+map.on('zoomend',zoomHint);
 kkApply();
 parcels=L.geoJSON(null,{style:styleFor,onEachFeature:(f,l)=>{l.on('click',()=>openSheet(l));index.push(l);applyLabel(l)}}).addTo(map);
 function loadDistrict(d){
@@ -832,7 +836,7 @@ fetch('data/index.json').then(r=>{if(!r.ok)throw 0;return r.json()}).then(list=>
   map.fitBounds(all);
   map.attributionControl.addAttribution('地番：法務省 登記所備付地図データ（G空間情報センター、AIGID変換）／森林簿：鹿児島県');
   map.on('moveend',refresh);refresh();
-  toast('地図を拡大すると地番が表示されます');
+  zoomHint();
 }).catch(()=>{document.getElementById('empty').hidden=false});
 
 document.getElementById('search').addEventListener('submit',async e=>{
