@@ -285,7 +285,10 @@ async function runSlope(){
 }
 
 // ===== 地図 =====
-const map=L.map('map',{zoomControl:true,preferCanvas:true}).setView([31.215,130.83],12);
+// 前回見ていた場所と拡大率から始める（初めて開いたときは町全体）
+const savedView=(()=>{try{const v=JSON.parse(localStorage.getItem('zoning:view')||'null');return v&&isFinite(v.lat)&&isFinite(v.lng)&&isFinite(v.z)?v:null}catch(e){return null}})();
+const map=L.map('map',{zoomControl:true,preferCanvas:true}).setView(savedView?[savedView.lat,savedView.lng]:[31.215,130.83],savedView?savedView.z:12);
+let svT;map.on('moveend',()=>{clearTimeout(svT);svT=setTimeout(()=>{try{const c=map.getCenter();localStorage.setItem('zoning:view',JSON.stringify({lat:+c.lat.toFixed(6),lng:+c.lng.toFixed(6),z:map.getZoom()}))}catch(e){}},500)});
 const gsiAttr='<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地理院タイル</a>';
 const std=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png',{maxZoom:18,attribution:gsiAttr,updateWhenZooming:false,keepBuffer:1});
 const photo=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',{maxZoom:18,attribution:gsiAttr,updateWhenZooming:false,keepBuffer:1});
@@ -357,7 +360,7 @@ const store={get(k){try{return localStorage.getItem('zoning:ovr:'+k)||''}catch(e
 const pkey=p=>[p['大字名']||'',p['小字名']||'',p['地番']||''].join('|');
 
 // ===== 地番と色分け =====
-let view='zone',parcels=null,selected=null,districts=[];const loading={};
+let view=(()=>{try{const v=localStorage.getItem('zoning:tint');return ['none','zone','plan','slope','own'].includes(v)?v:'zone'}catch(e){return 'zone'}})(),parcels=null,selected=null,districts=[];const loading={};
 function parcelInfo(p){
   const recs=(forest[p['大字名']]||{})[nz(p['地番'])]||null;if(!recs)return null;
   const by={};recs.forEach(r=>{const z=zoneOf(r)[0];by[z]=(by[z]||0)+(r.a||0)});
@@ -454,9 +457,9 @@ function refresh(){const z=map.getZoom(),vb=map.getBounds();
   if(!map.hasLayer(parcels))parcels.addTo(map);
   districts.forEach(d=>{if(vb.intersects(bb(d.bbox)))loadDistrict(d)})}
 fetch('../app/data/index.json').then(r=>r.json()).then(list=>{districts=list.filter(d=>d.oaza!=='その他');
-  map.fitBounds(districts.reduce((b,d)=>b.extend(bb(d.bbox)),L.latLngBounds([])));map.on('moveend',refresh);refresh()})
+  if(!savedView)map.fitBounds(districts.reduce((b,d)=>b.extend(bb(d.bbox)),L.latLngBounds([])));map.on('moveend',refresh);refresh()})
   .catch(()=>toast('地番データを読み込めませんでした。通信状態を確認してください'));
-function setView(v){view=v;if(kkLayer)kkLayer.setStyle(kkStyle);['none','zone','plan','slope','own'].forEach(k=>document.getElementById('v-'+k).setAttribute('aria-pressed',v===k));
+function setView(v){view=v;try{localStorage.setItem('zoning:tint',v)}catch(e){}if(kkLayer)kkLayer.setStyle(kkStyle);['none','zone','plan','slope','own'].forEach(k=>document.getElementById('v-'+k).setAttribute('aria-pressed',v===k));
   restyle();if(!selected)showSummary()}
 document.getElementById('v-zone').onclick=()=>setView('zone');
 document.getElementById('v-none').onclick=()=>{setView('none');toast('色分けを消しました。航空写真を見るときは、右上の「写真」を押してください')};
@@ -618,7 +621,7 @@ document.getElementById('cond-apply').onclick=()=>{readCond();try{localStorage.s
 document.getElementById('cond-reset').onclick=()=>{opts=Object.assign({},DEF);fillCond()};
 
 // ===== CSV書き出し（小班ごとの判定結果） =====
-const ZVER='版 2026-10-30z9';
+const ZVER='版 2026-10-30z10';
 function exportBtn(){const w=el('div','expw');const b=el('button','pbtn ghost','判定結果をCSVで書き出す');b.type='button';b.onclick=exportCSV;
   w.append(b,el('span','note','小班ごとの判定・傾斜などをExcelで開ける形で保存します'),el('span','zver',ZVER));return w}
 function exportCSV(){
@@ -634,6 +637,7 @@ function exportCSV(){
   a.href=URL.createObjectURL(blob);document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000);
   toast(`${a.download} を保存しました（Excelで開けます）`)};
 
+['none','zone','plan','slope','own'].forEach(k=>document.getElementById('v-'+k).setAttribute('aria-pressed',view===k)); // 前回の色分けを表示に反映
 kkApply();
 idb.get('slopes').then(s=>{if(s&&s.v===DEM_VER&&s.data){slopes=s.data;restyle();if(!selected)showSummary()}}).catch(()=>{});
 idb.get('rows').then(r=>{if(r&&r.length){rowsAll=r}onForestLoaded()}).catch(()=>onForestLoaded());
