@@ -305,21 +305,33 @@ const KK_RS={'単':'育成単層林','複':'育成複層林','天':'天然生林
 const KK_HO={'水涵保':'水源かん養保安林','土流保':'土砂流出防備保安林','土崩保':'土砂崩壊防備保安林'};
 const kkLin=n=>{const a=String(n||'').split('_');return a.length===3?`${a[0]}林班 ${a[2]}小班`:(n||'')};
 function kkStyle(f){const k=kkKt(f.properties.kt);
+  if(selected&&selected.feature===f)return{color:'#facc15',weight:3,opacity:1,dashArray:null,fillColor:view==='plan'&&k?k.c:'#facc15',fillOpacity:view==='plan'&&k?.8:.25};
   if(view==='plan'&&k)return{color:'#0e7490',weight:.8,opacity:.8,fillColor:k.c,fillOpacity:.55};
   return{color:'#0e7490',weight:1.2,opacity:.85,dashArray:'4 3',fillColor:'#0e7490',fillOpacity:.1}}
-function kkPopup(p){
-  const d=el('div','kkpop');const hd=el('div','kkh');hd.append(el('span','kkb','国有林'),kkLin(p.n));d.append(hd);
-  const t=document.createElement('table');const row=(k,v)=>{if(!v)return;const tr=el('tr');tr.append(el('td',null,k),el('td',null,v));t.append(tr)};
-  row('国有林名',[p.kn,p.tan&&`（${p.tan}担当区）`].filter(Boolean).join(''));row('林種',p.rs?`${KK_RS[p.rs]||p.rs}（${p.rs}）`:'');
-  (p.sp||[]).forEach((s,i)=>row(p.sp.length>1?`樹種${i+1}`:'樹種',`${s[0]==='他Ｌ'?'その他広葉樹（他Ｌ）':s[0]}${s[1]?`　${s[1]}年生`:''}`));
-  row('面積',p.ha!=null?p.ha+' ha':'');row('材積',p.vol!=null?Number(p.vol).toLocaleString()+' m³':'');
-  row('機能類型',p.kt);row('保安林',String(p.ho||'').split('・').filter(Boolean).map(x=>KK_HO[x]||x).join('・'));d.append(t);
-  d.append(el('div','src','出典：国土数値情報（国有林野データ）（国土交通省）を加工して作成'));return d}
+function openKK(l){
+  const p=l.feature.properties;const prev=selected;selected=l;if(prev)resetL(prev);l.setStyle(kkStyle(l.feature));l.bringToFront();
+  panel.replaceChildren();panel.scrollTop=0;
+  const top=el('div','ptop');const h2=el('h2',null,kkLin(p.n));h2.style.fontSize='20px';h2.style.fontFamily='var(--f-data)';
+  const x=el('button','xbtn','×');x.type='button';x.setAttribute('aria-label','集計に戻る');x.onclick=showSummary;
+  top.append(h2,el('span','sub',['国有林',p.kn,p.tan&&`（${p.tan}担当区）`].filter(Boolean).join(' ')),x);panel.append(top);
+  const row=el('div');row.style.marginTop='8px';const chip=el('span','chip','国有林');chip.style.background='#0e7490';row.append(chip);
+  const k=kkKt(p.kt);if(k){const c2=el('span','chip',p.kt);c2.style.background=k.c;c2.style.marginLeft='6px';row.append(c2)}
+  panel.append(row);
+  panel.append(el('p','why','国有林は森林簿（民有林）の対象外のため、ゾーン案の自動判定・集計には入っていません。機能類型は国有林の管理経営計画による区分です。'));
+  const t=el('table','sb');const r=(a,b)=>{if(!b)return;const tr=el('tr');const th=el('td',null,a);th.style.color='var(--muted)';th.style.whiteSpace='nowrap';tr.append(th,el('td',null,b));t.append(tr)};
+  r('面積',p.ha!=null?p.ha+' ha':'');r('林種',p.rs?`${KK_RS[p.rs]||p.rs}（${p.rs}）`:'');
+  (p.sp||[]).forEach((s,i)=>r(p.sp.length>1?`樹種${i+1}`:'樹種',`${s[0]==='他Ｌ'?'その他広葉樹（他Ｌ）':s[0]}${s[1]?`　${s[1]}年生（${Math.ceil(Number(s[1])/5)}齢級）`:''}`));
+  r('材積',p.vol!=null?Number(p.vol).toLocaleString()+' m³':'');r('機能類型',p.kt);
+  r('保安林',String(p.ho||'').split('・').filter(Boolean).map(x=>KK_HO[x]||x).join('・'));r('管理','大隅森林管理署');
+  const tw=el('div','tw');tw.append(t);panel.append(tw);
+  panel.append(el('p','credit','出典：国土数値情報（国有林野データ）（国土交通省）を加工して作成'));
+}
+function resetL(l){if(l.feature&&l.feature.properties&&l.feature.properties.__kk){if(kkLayer)kkLayer.resetStyle(l)}else parcels.resetStyle(l)}
 function kkLoad(){if(kkLoading)return kkLoading;
   return kkLoading=fetch('../app/kokuyu/index.json').then(r=>r.json()).then(m=>Promise.all(['units','roads'].map(n=>fetch(`../app/kokuyu/${n}.geojson?v=${m.v}`).then(r=>r.json()))))
     .then(([u,rd])=>{kkData=u;
       kkRoads=L.geoJSON(rd,{style:{color:'#b45309',weight:2,opacity:.85},interactive:false});
-      kkLayer=L.geoJSON(u,{style:kkStyle,onEachFeature:(f,l)=>l.on('click',e=>{L.popup({maxWidth:300}).setLatLng(e.latlng).setContent(kkPopup(f.properties)).openOn(map)})});
+      kkLayer=L.geoJSON(u,{style:kkStyle,onEachFeature:(f,l)=>{f.properties.__kk=true;l.on('click',()=>openKK(l))}});
       map.attributionControl.addAttribution('国有林：国土数値情報（国有林野データ）（国土交通省）を加工');kkApply();if(!selected)showSummary()})
     .catch(()=>{kkLoading=null;toast('国有林のデータを読み込めませんでした')})}
 function kkApply(){document.getElementById('kk').setAttribute('aria-pressed',kkOn);
@@ -420,7 +432,7 @@ function showSummary(){
 // ===== 地番カード =====
 function openParcel(l){
   const p=l.feature.properties;const info=parcelInfo(p);
-  const prev=selected;selected=l;if(prev)parcels.resetStyle(prev);l.setStyle(styleFor(l.feature));l.bringToFront();
+  const prev=selected;selected=l;if(prev)resetL(prev);l.setStyle(styleFor(l.feature));l.bringToFront();
   panel.replaceChildren();panel.scrollTop=0;
   const top=el('div','ptop');const h=el('h2',null,`${p['地番']} 番`);h.style.fontSize='20px';h.style.fontFamily='var(--f-data)';
   const x=el('button','xbtn','×');x.type='button';x.setAttribute('aria-label','集計に戻る');x.onclick=showSummary;
