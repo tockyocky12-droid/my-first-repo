@@ -87,6 +87,7 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
 #tint{display:flex;align-items:center;gap:8px;padding:0 max(14px,env(safe-area-inset-right,0px)) 8px max(14px,env(safe-area-inset-left,0px));background:var(--panel);border-bottom:1px solid var(--line);z-index:1000;font-size:13px;color:var(--muted)}
 #legend{position:absolute;left:calc(10px + env(safe-area-inset-left,0px));bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:900;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12px;display:grid;gap:3px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
 #legend div{display:flex;align-items:center;gap:6px}
+#legend .lgh{font-weight:700;color:var(--muted);font-size:11px}
 #legend i{width:14px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,.25);flex:none}
 .fr{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}
 .fr h3{font-size:15px;margin:0;font-family:var(--f-data);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -223,6 +224,7 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
     <button id="t-none" aria-pressed="true">なし</button>
     <button id="t-species" aria-pressed="false">樹種</button>
     <button id="t-age" aria-pressed="false">林齢</button>
+    <button id="t-rireki" aria-pressed="false">施業</button>
   </div>
   <button id="lbl" class="lbtn" type="button" aria-pressed="true">届出の文字</button>
   <span class="fwrap"><span id="fload" class="fbtn">森林簿CSVを読み込む</span><input id="ffile" class="fover" type="file" accept=".csv,text/csv,text/comma-separated-values,application/csv,application/vnd.ms-excel,text/plain" multiple aria-label="森林簿CSVを選ぶ"></span>
@@ -507,7 +509,12 @@ const SPECIES=[['すぎ','#1f6b3a',s=>s==='すぎ'],['ひのき','#5fa36a',s=>s=
   ['広葉樹','#c98a2e',s=>s==='その他広'||s==='くぬぎ'||s==='くす'],['竹林','#b7c93a',s=>/チク|ダケ/.test(s)],['伐採跡地・未立木地','#9c8c7a',(s,t)=>/伐採|未立木|困難|開発/.test(t+s)]];
 const AGES=[['1〜25年（1〜5齢級）','#bfe3b4',k=>k<=5],['26〜50年（6〜10齢級）','#6fbf73',k=>k<=10],['51〜75年（11〜15齢級）','#2e8b57',k=>k<=15],['76年以上（16齢級〜）','#14532d',k=>k>15]];
 let tint='none';
+// 施業履歴の色分け：その地番の一番新しい記録の作業で塗る
+const WORKS=[['植栽・地拵え（再造林）','#7cc47f',w=>/植栽|地拵|造林/.test(w)],['下刈り・除伐など（保育）','#e0b43a',w=>/下刈|つる|除伐/.test(w)],
+  ['間伐・枝打ち','#3b82c4',w=>/間伐|枝打/.test(w)],['主伐・択伐','#dc5a32',w=>/主伐|皆伐|択伐/.test(w)],['その他','#9a6fc4',w=>true]];
+function rirekiColor(p){const l=rkSort(rkGet(keyOf(p)));if(!l.length)return null;return WORKS.find(x=>x[2](l[0].work||''))[1]}
 function tintColor(f){
+  if(tint==='rireki')return rirekiColor(f.properties);
   const recs=forestOf(f.properties);if(!recs)return null;
   const sp=(mainRec(recs).sp||[])[0];if(!sp)return null;
   if(tint==='species'){const m=SPECIES.find(x=>x[2](sp[1]||'',sp[0]||''));return m?m[1]:'#8b7fb8'}
@@ -523,16 +530,17 @@ function styleFor(f){
   return {color:isPhoto()?'#fde68a':'#c2410c',weight:1,fillOpacity:.04,fillColor:'#c2410c'};
 }
 function setTint(t){
-  tint=t;['none','species','age'].forEach(k=>document.getElementById('t-'+k).setAttribute('aria-pressed',k===t));
+  tint=t;['none','species','age','rireki'].forEach(k=>document.getElementById('t-'+k).setAttribute('aria-pressed',k===t));
   const lg=document.getElementById('legend');lg.replaceChildren();
-  const items=t==='species'?SPECIES.map(x=>[x[0],x[1]]).concat([['その他','#8b7fb8']]):t==='age'?AGES.map(x=>[x[0],x[1]]):[];
-  items.forEach(([n,c])=>{const d=document.createElement('div');const i=document.createElement('i');i.style.background=c;d.append(i,document.createTextNode(n));lg.append(d)});
+  const items=t==='species'?SPECIES.map(x=>[x[0],x[1]]).concat([['その他','#8b7fb8']]):t==='age'?AGES.map(x=>[x[0],x[1]]):t==='rireki'?[['最新の施業',null]].concat(WORKS.map(x=>[x[0],x[1]])):[];
+  items.forEach(([n,c])=>{const d=document.createElement('div');if(!c){d.className='lgh';d.textContent=n;lg.append(d);return}const i=document.createElement('i');i.style.background=c;d.append(i,document.createTextNode(n));lg.append(d)});
   lg.hidden=!items.length;
   parcels.setStyle(styleFor);
-  if(t!=='none'&&!forestLoaded)toast('色分けには森林簿の読み込みが必要です（「森林簿CSVを読み込む」ボタン）');
+  if(t==='rireki'){const n=(()=>{let c=0;try{for(let i=0;i<localStorage.length;i++)if(localStorage.key(i).startsWith('rireki:'))c++}catch(e){}return c})();toast(n?`施業履歴のある ${n} 地番を色分けしています`:'施業履歴はまだ記録されていません')}
+  else if(t!=='none'&&!forestLoaded)toast('色分けには森林簿の読み込みが必要です（「森林簿CSVを読み込む」ボタン）');
   else if(t!=='none'&&map.getZoom()<MINZ)toast('地図を拡大すると色分けが表示されます');
 }
-['none','species','age'].forEach(k=>document.getElementById('t-'+k).onclick=()=>setTint(k));
+['none','species','age','rireki'].forEach(k=>document.getElementById('t-'+k).onclick=()=>setTint(k));
 
 function renderForest(p){
   const box=document.getElementById('s-forest');box.replaceChildren();
