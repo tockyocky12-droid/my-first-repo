@@ -172,6 +172,10 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
 .brow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .brow>div{min-width:0}
 .bnote{font-size:11px;color:var(--muted)}
+.bdel{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px;font-size:13px}
+.bdelbtn{font:inherit;font-size:13px;padding:6px 12px;border-radius:8px;border:1px solid #dc2626;background:transparent;color:#dc2626;cursor:pointer}
+.bdelbtn.solid{background:#dc2626;color:#fff}
+.bdel .plain{font:inherit;font-size:13px;background:transparent;border:0;color:var(--muted);cursor:pointer;padding:6px 4px}
 .leaflet-tooltip.blabel{background:#fff;color:#991b1b;border:2px solid #dc2626;border-radius:6px;font:700 12px/1.3 "BIZ UDGothic","Hiragino Sans",sans-serif;padding:2px 6px;box-shadow:0 1px 4px rgba(0,0,0,.3);white-space:nowrap}
 .leaflet-tooltip.blabel::before{display:none}
 .leaflet-tooltip.blabel{font-size:11px;padding:1px 5px;border-width:1.5px;max-width:9em;overflow:hidden;text-overflow:ellipsis}
@@ -276,7 +280,8 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
       <div><label for="b-from">伐採開始</label><input id="b-from" type="date"></div>
       <div><label for="b-to">伐採終了</label><input id="b-to" type="date"></div>
     </div>
-    <div class="bnote">文字を入れると、地図上のこの地番に表示されます。消すと表示も消えます。</div>
+    <div class="bnote">文字を入れると、地図上のこの地番に表示されます。</div>
+    <div class="bdel" id="b-delrow"><button type="button" id="b-del" class="bdelbtn">この伐採届を削除</button></div>
   </div>
   </div>
   <div class="pane" id="p-rireki" role="tabpanel" hidden>
@@ -364,6 +369,20 @@ function setLbl(on){lblOn=on;map.getContainer().classList.toggle('lb-off',!on);d
 document.getElementById('lbl').onclick=()=>{setLbl(!lblOn);toast(lblOn?(map.getZoom()<LABEL_Z?'さらに拡大すると届出の文字が出ます':'届出の文字を表示します'):'届出の文字を隠しました（赤い枠は残ります）')};
 setLbl(lblOn);
 let bt;
+function bDelRow(){ // 伐採届の削除ボタン（記録があるときだけ）
+  const row=document.getElementById('b-delrow');row.replaceChildren();
+  if(!selected||!bassaiRaw(selected.feature.properties)){row.hidden=true;return}row.hidden=false;
+  const b=document.createElement('button');b.type='button';b.className='bdelbtn';b.textContent='この伐採届を削除';
+  b.onclick=()=>{row.replaceChildren();const q=document.createElement('span');q.textContent='文字・受理日・伐採方法・期間をすべて削除しますか？';
+    const y=document.createElement('button');y.type='button';y.className='bdelbtn solid';y.textContent='削除する';
+    y.onclick=()=>{const layer=selected;if(!layer)return;clearTimeout(bt);
+      if(!store.set(keyOf(layer.feature.properties),'','bassai')){toast('削除できませんでした');return}
+      BF.forEach(f=>document.getElementById('b-'+f).value='');
+      applyLabel(layer);parcels.resetStyle(layer);if(selected===layer)layer.setStyle(styleFor(layer.feature));updateDots();bDelRow();toast('伐採届を削除しました')};
+    const n=document.createElement('button');n.type='button';n.className='plain';n.textContent='やめる';n.onclick=bDelRow;
+    row.append(q,y,n)};
+  row.append(b);
+}
 BF.forEach(k=>document.getElementById('b-'+k).addEventListener(k==='label'?'input':'change',()=>{
   clearTimeout(bt);const layer=selected,key=currentKey;if(!layer)return;
   bt=setTimeout(()=>{
@@ -371,7 +390,7 @@ BF.forEach(k=>document.getElementById('b-'+k).addEventListener(k==='label'?'inpu
     const ok=store.set(key,Object.keys(o).length?JSON.stringify(o):'','bassai');
     if(!ok){toast('伐採届を保存できませんでした（ブラウザの設定を確認してください）');return}
     if(!o.label&&Object.keys(o).length)toast('地図に出すには「表示する文字」を入れてください');
-    applyLabel(layer);parcels.resetStyle(layer);if(selected===layer)layer.setStyle(styleFor(layer.feature));updateDots();
+    applyLabel(layer);parcels.resetStyle(layer);if(selected===layer)layer.setStyle(styleFor(layer.feature));updateDots();bDelRow();
   },400);
 }));
 let curArea=0;
@@ -574,7 +593,7 @@ function openSheet(layer){
   renderForest(p);
   rkClose();renderRireki();
   const b=bassaiRaw(p)||{};
-  BF.forEach(k=>document.getElementById('b-'+k).value=b[k]||'');
+  BF.forEach(k=>document.getElementById('b-'+k).value=b[k]||'');bDelRow();
   document.getElementById('memo').value=store.get(currentKey);
   document.getElementById('saved').textContent='この端末に保存されます';
   const sh=document.getElementById('sheet');sh.hidden=false;setMin(false);
@@ -613,7 +632,7 @@ function renderRireki(){
     del.onclick=()=>{ // 確認は画面の中で行う
       acts.replaceChildren();const q=document.createElement('span');q.className='l2';q.textContent='この記録を削除しますか？';
       const y=document.createElement('button');y.type='button';y.className='del';y.textContent='削除する';
-      y.onclick=()=>{const k=keyOf(p);if(!rkSet(k,rkGet(k).filter(x=>x.id!==e.id))){toast('削除できませんでした');return}renderRireki();updateDots();toast('施業履歴を削除しました')};
+      y.onclick=()=>{const k=keyOf(p);if(!rkSet(k,rkGet(k).filter(x=>x.id!==e.id))){toast('削除できませんでした');return}if(rkEdit===e.id)rkClose();renderRireki();updateDots();toast('施業履歴を削除しました')};
       const n=document.createElement('button');n.type='button';n.textContent='やめる';n.onclick=renderRireki;acts.append(q,y,n)};
     acts.append(ed,del);it.append(acts);box.append(it)});
   // 森林簿に載っている施業履歴（参考）
@@ -629,7 +648,7 @@ function rkOpen(e){
   ['area','work','jigyo','who','note'].forEach(k=>document.getElementById('rk-'+k).value=e?e[k]||'':'');
   rkWhoList();document.getElementById('rk-work').focus({preventScroll:true});f.scrollIntoView({block:'nearest'});
 }
-function rkClose(){rkEdit=null;document.getElementById('rk-form').hidden=true;document.getElementById('rk-add').hidden=false}
+function rkClose(){rkEdit=null;document.getElementById('rk-form').reset();document.getElementById('rk-form').hidden=true;document.getElementById('rk-add').hidden=false}
 document.getElementById('rk-add').onclick=()=>rkOpen(null);
 document.getElementById('rk-cancel').onclick=rkClose;
 document.getElementById('rk-form').addEventListener('submit',ev=>{
