@@ -433,7 +433,7 @@ function kkSummary(){
   const sec=el('div','kksec');sec.append(el('h3',null,`国有林（参考）　${fmtHa(tot)} ha`));
   const tb=el('table','sum');Object.keys(by).sort((a,b)=>by[b]-by[a]).forEach(k=>{const tr=el('tr');const t1=el('td');const s=el('span','sw');s.style.background=(kkKt(k)||{c:'#9aa3a6'}).c;t1.append(s,k);
     tr.append(t1,el('td','n',fmtHa(by[k])),el('td','n',(by[k]/tot*100).toFixed(1)+'%'));tb.append(tr)});
-  sec.append(tb,el('p','note','国有林の機能類型（国有林野の管理経営計画による区分）です。「現行計画区分」表示では、この色で国有林を塗り分けます。ゾーン案の集計（上の表）は民有林の森林簿だけで、国有林は含みません。'));
+  sec.append(tb,el('p','note','国有林の機能類型（国有林野の管理経営計画による区分）です。色分けの「現行計画区分」では、この色で国有林を塗り分けます。ゾーン案の集計（上の表）は民有林の森林簿だけで、国有林は含みません。'));
   return sec}
 parcels=L.geoJSON(null,{style:styleFor,onEachFeature:(f,l)=>l.on('click',()=>openParcel(l))}).addTo(map);
 function bb(b){return L.latLngBounds([b[1],b[0]],[b[3],b[2]])}
