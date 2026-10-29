@@ -45,14 +45,24 @@ header h1 small{font-weight:400;color:var(--muted);font-size:12px;margin-left:4p
 /* 下のパネル（集計／地番カード） */
 #panel{background:var(--panel);border-top:1px solid var(--line);z-index:1000;max-height:46%;overflow:auto;
   padding-block:10px calc(10px + env(safe-area-inset-bottom,0px));padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px))}
-.ptop{display:flex;align-items:baseline;gap:8px}
-.ptop h2{font-size:15px;margin:0;flex:1}
+.ptop{display:flex;align-items:baseline;gap:4px 8px;flex-wrap:wrap}
+.ptop h2{font-size:15px;margin:0;flex:1 1 auto;white-space:nowrap}
 .ptop .sub{font-size:12px;color:var(--muted)}
 .xbtn{border:0;background:transparent;color:var(--muted);font-size:22px;line-height:1;cursor:pointer;padding:0 4px}
 table.sum{width:100%;border-collapse:collapse;font-family:var(--f-data);font-size:13px;margin-top:6px;font-variant-numeric:tabular-nums}
 table.sum td{padding:5px 4px;border-top:1px solid var(--line)}
 table.sum td.n{text-align:right;white-space:nowrap}
 table.sum tr.tot td{font-weight:700}
+.ftog{display:flex;align-items:center;gap:0;font:inherit;font-size:13px;font-family:var(--f-data);color:var(--fg);background:transparent;border:0;padding:2px 0;cursor:pointer;text-align:left}
+.ftog .ck{display:inline-grid;place-items:center;width:18px;height:18px;border:1.5px solid var(--muted);border-radius:4px;margin-right:6px;font-size:12px;line-height:1;color:var(--accent-fg);background:var(--accent);border-color:var(--accent);flex:none}
+tr.off .ftog .ck{background:transparent;border-color:var(--muted)}
+tr.off td{opacity:.45}
+tr.off td:first-child,tr.off td:last-child{opacity:1}
+tr.off .ftog{color:var(--muted)}
+.only{font:inherit;font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer}
+.bcell{width:22%}
+.fnote{font-size:12px;color:var(--muted);margin:6px 0 0;line-height:1.6}
+.allbtn{font:inherit;font-size:12px;padding:2px 10px;border-radius:999px;border:1px solid var(--accent);background:transparent;color:var(--accent);cursor:pointer}
 .sw{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px;border:1px solid rgba(0,0,0,.2)}
 .barc{height:6px;border-radius:3px;background:var(--line);overflow:hidden;min-width:40px}
 .barc i{display:block;height:100%}
@@ -255,9 +265,14 @@ function parcelInfo(p){
   return {recs,auto,man:ZMAP[man]?man:'',zone:ZMAP[man]?man:auto,plan:PLAN.find(x=>x.m===plan)||null};
 }
 const isPhoto=()=>map.hasLayer(photo);
+// 絞り込み：表示しないゾーン（区分）を覚えておく
+let hide={zone:new Set(),plan:new Set()};
+try{const o=JSON.parse(localStorage.getItem('zoning:hide')||'{}');hide.zone=new Set(o.zone||[]);hide.plan=new Set(o.plan||[])}catch(e){}
+function saveHide(){try{localStorage.setItem('zoning:hide',JSON.stringify({zone:[...hide.zone],plan:[...hide.plan]}))}catch(e){}}
 function styleFor(f){
   const info=parcelInfo(f.properties),sel=selected&&selected.feature===f;
-  const col=info?(view==='zone'?ZMAP[info.zone].c:(info.plan?info.plan.c:null)):null;
+  let col=null;
+  if(info){if(view==='zone'){if(!hide.zone.has(info.zone))col=ZMAP[info.zone].c}else if(info.plan&&!hide.plan.has(info.plan.m))col=info.plan.c}
   const line=sel?'#facc15':(isPhoto()?'#fde68a':'#6b4f3a');
   if(!col)return{color:line,weight:sel?3:.5,opacity:col||sel?1:.35,fillOpacity:sel?.2:0,fillColor:'#facc15'};
   return{color:line,weight:sel?3:.5,opacity:sel?1:.5,fillColor:col,fillOpacity:sel?.85:.62};
@@ -293,6 +308,23 @@ function summarize(){
     res[z]=(res[z]||0)+r.a;total+=r.a}
   return{res,total,manual};
 }
+function filterRow(kind,key,color,name,cells,list){
+  const on=!hide[kind].has(key);const tr=el('tr','frow'+(on?'':' off'));
+  const t1=el('td');const btn=el('button','ftog');btn.type='button';btn.setAttribute('aria-pressed',on);btn.title=on?'地図から外す':'地図に表示する';
+  const ck=el('span','ck',on?'✓':'');const s=el('span','sw');s.style.background=color;btn.append(ck,s,name);
+  btn.onclick=()=>{on?hide[kind].add(key):hide[kind].delete(key);saveHide();restyle();showSummary()};t1.append(btn);
+  const only=el('button','only','だけ');only.type='button';only.title=name+'だけを表示';
+  only.onclick=()=>{hide[kind]=new Set(list.filter(k=>k!==key));saveHide();restyle();showSummary();toast(`${name}だけを表示しています`)};
+  const t9=el('td','n');t9.append(only);
+  tr.append(t1,...cells,t9);return tr;
+}
+function filterNote(kind,names){
+  const shown=names.filter(([k])=>!hide[kind].has(k));
+  const p=el('p','fnote');
+  if(shown.length===names.length){p.textContent='行をタップすると、そのゾーンを地図から外せます。「だけ」でそのゾーンだけを表示します。';return p}
+  p.append(`地図に表示中：${shown.length?shown.map(([,n])=>n).join('・'):'なし'}　`);
+  const all=el('button','allbtn','すべて表示');all.type='button';all.onclick=()=>{hide[kind]=new Set();saveHide();restyle();showSummary()};p.append(all);return p;
+}
 function showSummary(){
   selected=null;restyle();panel.replaceChildren();
   if(!rowsAll.length){
@@ -305,20 +337,22 @@ function showSummary(){
     const {res,total,manual}=summarize();
     top.append(el("h2",null,"ゾーン別の面積（試案）"),el('span','sub',`森林簿の面積（ha）・${towns().join('・')}`));panel.append(top);
     const tb=el('table','sum');
-    ZONES.forEach(z=>{const a=res[z.k]||0,tr=el('tr');
-      const t1=el('td');const s=el('span','sw');s.style.background=z.c;t1.append(s,z.n);
+    panel.append(filterNote('zone',ZONES.map(z=>[z.k,z.n])));
+    ZONES.forEach(z=>{const a=res[z.k]||0;
       const t2=el('td','n',fmtHa(a));const t3=el('td','n',total?(a/total*100).toFixed(1)+'%':'—');
-      const t4=el('td');const bc=el('div','barc');const bi=el('i');bi.style.width=(total?a/total*100:0)+'%';bi.style.background=z.c;bc.append(bi);t4.append(bc);t4.style.width='30%';
-      tr.append(t1,t2,t3,t4);tb.append(tr)});
-    const tr=el('tr','tot');tr.append(el('td',null,'合計'),el('td','n',fmtHa(total)),el('td','n','100%'),el('td'));tb.append(tr);panel.append(tb);
+      const t4=el('td','bcell');const bc=el('div','barc');const bi=el('i');bi.style.width=(total?a/total*100:0)+'%';bi.style.background=z.c;bc.append(bi);t4.append(bc);
+      tb.append(filterRow('zone',z.k,z.c,z.n,[t2,t3,t4],ZONES.map(x=>x.k)))});
+    const tr=el('tr','tot');tr.append(el('td',null,'合計'),el('td','n',fmtHa(total)),el('td','n','100%'),el('td'),el('td'));tb.append(tr);panel.append(tb);
     panel.append(el('p','note',`地番をタップすると、判定の理由と小班の内訳が見られます。${manual?`手直しで変わった面積：${fmtHa(manual)} ha。`:''}地図の色は地番単位、集計は小班単位です。`));
   }else{
     const pa={};let total=0,none=0;rowsAll.forEach(r=>{const p=planOf(r.plan);total+=r.a;if(p)pa[p.m]=(pa[p.m]||0)+r.a;else none+=r.a});
     top.append(el('h2',null,'現行計画の区分'),el('span','sub','公益的機能別施業森林（ha）'));panel.append(top);
     const tb=el('table','sum');
-    PLAN.forEach(p=>{const a=pa[p.m]||0;if(!a)return;const tr=el('tr');const t1=el('td');const s=el('span','sw');s.style.background=p.c;t1.append(s,p.n);
-      tr.append(t1,el('td','n',fmtHa(a)),el('td','n',(a/total*100).toFixed(1)+'%'));tb.append(tr)});
-    if(none){const tr=el('tr');tr.append(el('td',null,'区分なし'),el('td','n',fmtHa(none)),el('td','n',(none/total*100).toFixed(1)+'%'));tb.append(tr)}
+    const present=PLAN.filter(p=>pa[p.m]);
+    panel.append(filterNote('plan',present.map(p=>[p.m,p.n])));
+    present.forEach(p=>{const a=pa[p.m];
+      tb.append(filterRow('plan',p.m,p.c,p.n,[el('td','n',fmtHa(a)),el('td','n',(a/total*100).toFixed(1)+'%')],present.map(x=>x.m)))});
+    if(none){const tr=el('tr');tr.append(el('td',null,'区分なし'),el('td','n',fmtHa(none)),el('td','n',(none/total*100).toFixed(1)+'%'),el('td'));tb.append(tr)}
     panel.append(tb,el('p','note','森林簿に記載された、市町村森林整備計画の区分です。ゾーン案と見比べるのに使います。'));
   }
   panel.append(el('p','credit','この成果品は、鹿児島県森林資源情報データ（ダウンロード）から作成したものである'));
