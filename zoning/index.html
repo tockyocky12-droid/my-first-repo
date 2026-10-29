@@ -53,6 +53,15 @@ table.sum{width:100%;border-collapse:collapse;font-family:var(--f-data);font-siz
 table.sum td{padding:5px 4px;border-top:1px solid var(--line)}
 table.sum td.n{text-align:right;white-space:nowrap}
 table.sum tr.tot td{font-weight:700}
+.kkbtn[aria-pressed="true"]{border-color:#0e7490;color:#0e7490;font-weight:700}
+.kksec{margin-top:14px;border-top:2px solid #0e7490;padding-top:8px}
+.kksec h3{font-size:14px;margin:0;color:#0e7490}
+.kkpop{font-family:var(--f-data);font-size:13px;line-height:1.55;min-width:200px;color:#17262b}
+.kkpop .kkh{display:flex;align-items:center;gap:6px;font-size:15px;font-weight:700;margin-bottom:4px}
+.kkpop .kkb{font-size:11px;color:#fff;background:#0e7490;border-radius:999px;padding:1px 8px;font-weight:400}
+.kkpop td{padding:1px 8px 1px 0;vertical-align:top}
+.kkpop td:first-child{color:#5b6b70;white-space:nowrap}
+.kkpop .src{font-size:10px;color:#5b6b70;margin-top:6px}
 .ftog{display:flex;align-items:center;gap:0;font:inherit;font-size:13px;font-family:var(--f-data);color:var(--fg);background:transparent;border:0;padding:2px 0;cursor:pointer;text-align:left}
 .ftog .ck{display:inline-grid;place-items:center;width:18px;height:18px;border:1.5px solid var(--muted);border-radius:4px;margin-right:6px;font-size:12px;line-height:1;color:var(--accent-fg);background:var(--accent);border-color:var(--accent);flex:none}
 tr.off .ftog .ck{background:transparent;border-color:var(--muted)}
@@ -121,6 +130,7 @@ table.sb td.n{text-align:right}
     <button id="v-plan" aria-pressed="false">現行計画の区分</button>
   </div>
   <span class="fwrap" id="fload-wrap"><span class="fbtn" id="fload">森林簿CSVを読み込む</span><input id="ffile" class="fover" type="file" multiple accept=".csv,text/csv,text/comma-separated-values,application/csv,application/vnd.ms-excel,text/plain" aria-label="森林簿CSVを選ぶ"></span>
+  <button id="kk" class="hbtn kkbtn" type="button" aria-pressed="true">国有林</button>
   <button id="export" class="hbtn" type="button" hidden>CSV書き出し</button>
 </div>
 <div id="maparea"><div id="map"></div></div>
@@ -286,7 +296,46 @@ function styleFor(f){
   if(!col)return{color:line,weight:sel?3:.5,opacity:col||sel?1:.35,fillOpacity:sel?.2:0,fillColor:'#facc15'};
   return{color:line,weight:sel?3:.5,opacity:sel?1:.5,fillColor:col,fillOpacity:sel?.85:.62};
 }
-function restyle(){if(parcels)parcels.setStyle(styleFor)}
+function restyle(){if(parcels)parcels.setStyle(styleFor);if(kkLayer)kkLayer.setStyle(kkStyle)}
+// ---- 国有林（国土数値情報「国有林野」から錦江町分。森林管理システムと同じデータを使う） ----
+let kkLayer=null,kkRoads=null,kkData=null,kkLoading=null,kkOn=true;try{kkOn=localStorage.getItem('zoning:kokuyu')!=='off'}catch(e){}
+const KK_KT=[{m:'水源涵養',c:'#3b82c4'},{m:'山地災害防止',c:'#8d6e63'},{m:'自然維持',c:'#2e7d32'},{m:'森林空間利用',c:'#e07aa8'},{m:'快適環境',c:'#8e6cc4'},{m:'木材生産',c:'#7cc47f'}];
+const kkKt=s=>KK_KT.find(x=>String(s||'').includes(x.m))||null;
+const KK_RS={'単':'育成単層林','複':'育成複層林','天':'天然生林','育':'育成天然林','人伐':'人工林伐採跡地'};
+const KK_HO={'水涵保':'水源かん養保安林','土流保':'土砂流出防備保安林','土崩保':'土砂崩壊防備保安林'};
+const kkLin=n=>{const a=String(n||'').split('_');return a.length===3?`${a[0]}林班 ${a[2]}小班`:(n||'')};
+function kkStyle(f){const k=kkKt(f.properties.kt);
+  if(view==='plan'&&k)return{color:'#0e7490',weight:.8,opacity:.8,fillColor:k.c,fillOpacity:.55};
+  return{color:'#0e7490',weight:1.2,opacity:.85,dashArray:'4 3',fillColor:'#0e7490',fillOpacity:.1}}
+function kkPopup(p){
+  const d=el('div','kkpop');const hd=el('div','kkh');hd.append(el('span','kkb','国有林'),kkLin(p.n));d.append(hd);
+  const t=document.createElement('table');const row=(k,v)=>{if(!v)return;const tr=el('tr');tr.append(el('td',null,k),el('td',null,v));t.append(tr)};
+  row('国有林名',[p.kn,p.tan&&`（${p.tan}担当区）`].filter(Boolean).join(''));row('林種',p.rs?`${KK_RS[p.rs]||p.rs}（${p.rs}）`:'');
+  (p.sp||[]).forEach((s,i)=>row(p.sp.length>1?`樹種${i+1}`:'樹種',`${s[0]==='他Ｌ'?'その他広葉樹（他Ｌ）':s[0]}${s[1]?`　${s[1]}年生`:''}`));
+  row('面積',p.ha!=null?p.ha+' ha':'');row('材積',p.vol!=null?Number(p.vol).toLocaleString()+' m³':'');
+  row('機能類型',p.kt);row('保安林',String(p.ho||'').split('・').filter(Boolean).map(x=>KK_HO[x]||x).join('・'));d.append(t);
+  d.append(el('div','src','出典：国土数値情報（国有林野データ）（国土交通省）を加工して作成'));return d}
+function kkLoad(){if(kkLoading)return kkLoading;
+  return kkLoading=fetch('../app/kokuyu/index.json').then(r=>r.json()).then(m=>Promise.all(['units','roads'].map(n=>fetch(`../app/kokuyu/${n}.geojson?v=${m.v}`).then(r=>r.json()))))
+    .then(([u,rd])=>{kkData=u;
+      kkRoads=L.geoJSON(rd,{style:{color:'#b45309',weight:2,opacity:.85},interactive:false});
+      kkLayer=L.geoJSON(u,{style:kkStyle,onEachFeature:(f,l)=>l.on('click',e=>{L.popup({maxWidth:300}).setLatLng(e.latlng).setContent(kkPopup(f.properties)).openOn(map)})});
+      map.attributionControl.addAttribution('国有林：国土数値情報（国有林野データ）（国土交通省）を加工');kkApply();if(!selected)showSummary()})
+    .catch(()=>{kkLoading=null;toast('国有林のデータを読み込めませんでした')})}
+function kkApply(){document.getElementById('kk').setAttribute('aria-pressed',kkOn);
+  if(!kkLayer){if(kkOn)kkLoad();return}
+  if(kkOn){if(!map.hasLayer(kkLayer)){kkLayer.addTo(map);kkRoads.addTo(map);kkLayer.bringToBack()}}else{kkLayer.remove();kkRoads.remove()}}
+document.getElementById('kk').onclick=()=>{kkOn=!kkOn;try{localStorage.setItem('zoning:kokuyu',kkOn?'on':'off')}catch(e){}kkApply();if(!selected)showSummary();
+  toast(kkOn?'国有林を表示しました（水色の点線、茶色の線は林道）':'国有林を隠しました')};
+// 国有林の集計（機能類型別）
+function kkSummary(){
+  if(!kkOn||!kkData)return null;
+  const by={};let tot=0;kkData.features.forEach(f=>{const p=f.properties,a=p.ha||0;tot+=a;const k=(kkKt(p.kt)||{m:p.kt||'不明'}).m;by[k]=(by[k]||0)+a});
+  const sec=el('div','kksec');sec.append(el('h3',null,`国有林（参考）　${fmtHa(tot)} ha`));
+  const tb=el('table','sum');Object.keys(by).sort((a,b)=>by[b]-by[a]).forEach(k=>{const tr=el('tr');const t1=el('td');const s=el('span','sw');s.style.background=(kkKt(k)||{c:'#9aa3a6'}).c;t1.append(s,k);
+    tr.append(t1,el('td','n',fmtHa(by[k])),el('td','n',(by[k]/tot*100).toFixed(1)+'%'));tb.append(tr)});
+  sec.append(tb,el('p','note','国有林の機能類型（国有林野の管理経営計画による区分）です。「現行計画の区分」表示では、この色で国有林を塗り分けます。ゾーン案の集計（上の表）は民有林の森林簿だけで、国有林は含みません。'));
+  return sec}
 parcels=L.geoJSON(null,{style:styleFor,onEachFeature:(f,l)=>l.on('click',()=>openParcel(l))}).addTo(map);
 function bb(b){return L.latLngBounds([b[1],b[0]],[b[3],b[2]])}
 function loadDistrict(d){if(loading[d.file])return loading[d.file];
@@ -300,7 +349,7 @@ function refresh(){const z=map.getZoom(),vb=map.getBounds();
 fetch('../app/data/index.json').then(r=>r.json()).then(list=>{districts=list.filter(d=>d.oaza!=='その他');
   map.fitBounds(districts.reduce((b,d)=>b.extend(bb(d.bbox)),L.latLngBounds([])));map.on('moveend',refresh);refresh()})
   .catch(()=>toast('地番データを読み込めませんでした。通信状態を確認してください'));
-function setView(v){view=v;document.getElementById('v-zone').setAttribute('aria-pressed',v==='zone');document.getElementById('v-plan').setAttribute('aria-pressed',v==='plan');
+function setView(v){view=v;if(kkLayer)kkLayer.setStyle(kkStyle);document.getElementById('v-zone').setAttribute('aria-pressed',v==='zone');document.getElementById('v-plan').setAttribute('aria-pressed',v==='plan');
   restyle();if(!selected)showSummary()}
 document.getElementById('v-zone').onclick=()=>setView('zone');
 document.getElementById('v-plan').onclick=()=>setView('plan');
@@ -364,6 +413,7 @@ function showSummary(){
     if(none){const tr=el('tr');tr.append(el('td',null,'区分なし'),el('td','n',fmtHa(none)),el('td','n',(none/total*100).toFixed(1)+'%'),el('td'));tb.append(tr)}
     panel.append(tb,el('p','note','森林簿に記載された、市町村森林整備計画の区分です。ゾーン案と見比べるのに使います。'));
   }
+  const ks=kkSummary();if(ks)panel.append(ks);
   panel.append(el('p','credit','この成果品は、鹿児島県森林資源情報データ（ダウンロード）から作成したものである'));
 }
 
@@ -440,6 +490,7 @@ document.getElementById('export').onclick=()=>{
   a.href=URL.createObjectURL(blob);document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000);
   toast(`${a.download} を保存しました（Excelで開けます）`)};
 
+kkApply();
 idb.get('rows').then(r=>{if(r&&r.length){rowsAll=r}onForestLoaded()}).catch(()=>onForestLoaded());
 </script>
 </body>
