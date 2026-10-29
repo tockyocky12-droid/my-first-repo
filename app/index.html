@@ -127,6 +127,9 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
 .rp-btns{display:flex;gap:8px;flex-wrap:wrap}
 .pbtn{display:inline-block;font:inherit;font-size:14px;padding:9px 14px;border-radius:8px;border:0;background:var(--accent);color:var(--accent-fg);cursor:pointer}
 #rec-save{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+.opt2{font-size:13px;margin:0 0 6px}.opt2 input{vertical-align:-2px;margin-right:4px}
+.sv-est{font-size:12px;color:var(--muted);margin:0 0 8px}
+.pbtn.ghost2{background:transparent;color:var(--muted);border:1px solid var(--line)}
 .rp-note{font-size:12px;color:var(--muted);margin:14px 0 0}
 .rp-msg{font-size:13px;line-height:1.6;background:var(--bg);border:1px solid var(--accent);border-radius:8px;padding:8px 10px;margin:8px 0 0}
 .rp-ver{display:block;margin-top:6px;font-size:11px;opacity:.7}
@@ -250,7 +253,14 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
       <p>受け取った記録ファイル（.txt または .json）を選びます。同じ地番の記録は、ファイルの内容で上書きします。この端末にしかない記録は消えません。</p>
       <div class="rp-btns"><span class="fwrap pwrap"><span class="pbtn">ファイルを選んで取り込む</span><input id="rec-file" class="fover" type="file" accept=".json,.txt,application/json,text/plain" aria-label="記録ファイルを選ぶ"></span></div>
     </div>
-    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-29j</span></p>
+    <div class="rp-step">
+      <h3>地図を端末に保存（通信量を減らす）</h3>
+      <p>Wi-Fiにつながっているときに、いま画面に映っている範囲の地図を、少し拡大した分まで端末に保存します。現場では保存した地図を使うので、通信をほとんど使いません。</p>
+      <div class="opt2"><label><input type="checkbox" id="sv-photo"> 航空写真も保存する（通信量が約3倍）</label></div>
+      <p class="sv-est" id="sv-est"></p>
+      <div class="rp-btns"><button id="sv-go" class="pbtn" type="button">この範囲の地図を保存</button><button id="sv-clear" class="pbtn ghost2" type="button">保存した地図を消す</button></div>
+    </div>
+    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-29k</span></p>
   </div>
 </div>
 <form id="search" autocomplete="off">
@@ -375,8 +385,8 @@ const savedView=(()=>{try{const v=JSON.parse(LS.getItem('ui:view')||'null');retu
 const map=L.map('map',{zoomControl:true,preferCanvas:true}).setView(savedView?[savedView.lat,savedView.lng]:CFG.center,savedView?savedView.z:13);
 let svT;map.on('moveend',()=>{clearTimeout(svT);svT=setTimeout(()=>{try{const c=map.getCenter();LS.setItem('ui:view',JSON.stringify({lat:+c.lat.toFixed(6),lng:+c.lng.toFixed(6),z:map.getZoom()}))}catch(e){}},500)});
 const gsiAttr='<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>';
-const std=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',{maxZoom:18,attribution:gsiAttr});
-const photo=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',{maxZoom:18,attribution:gsiAttr});
+const std=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',{maxZoom:18,attribution:gsiAttr,updateWhenZooming:false,keepBuffer:1});
+const photo=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',{maxZoom:18,attribution:gsiAttr,updateWhenZooming:false,keepBuffer:1});
 std.addTo(map);
 function setBase(p){
   (p?std:photo).remove();(p?photo:std).addTo(map);
@@ -952,7 +962,38 @@ function recFile(){const items=collectRecords();const d=new Date();const stamp=d
   const body=JSON.stringify({app:CFG.recApp,kind:'records',version:1,exportedAt:d.toISOString(),items},null,1);
   return {file:new File([body],`${CFG.filePrefix}-${stamp}.json`,{type:'application/json'}),txt:new File([body],`${CFG.filePrefix}-${stamp}.txt`,{type:'text/plain'}),count:Object.keys(items).length,items}}
 function rpMsg(t){const m=document.getElementById('rp-msg');m.textContent=t;m.hidden=!t}
-function openRec(){rpMsg('');document.getElementById('rp-sum').textContent='この端末の記録：'+recSummary(collectRecords());document.getElementById('recp').hidden=false}
+// ---- 地図を端末に保存（国土地理院の地図画像を、Wi-Fiのときに先に読んでおく） ----
+const SAVED_CACHE='gsi-saved-v1',SV_MAX=3000;
+function svTiles(withPhoto){
+  const b=map.getBounds(),z0=Math.max(map.getZoom(),12),z1=Math.min(z0+2,18),list=[];
+  const tx=(lon,z)=>Math.floor((lon+180)/360*2**z),ty=(lat,z)=>{const s=Math.sin(lat*Math.PI/180);return Math.floor((0.5-Math.log((1+s)/(1-s))/(4*Math.PI))*2**z)};
+  for(let z=z0;z<=z1;z++){const x0=tx(b.getWest(),z),x1=tx(b.getEast(),z),y0=ty(b.getNorth(),z),y1=ty(b.getSouth(),z);
+    for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++){list.push(`https://cyberjapandata.gsi.go.jp/xyz/std/${z}/${x}/${y}.png`);if(withPhoto)list.push(`https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/${z}/${x}/${y}.jpg`)}}
+  return {list,z0,z1};
+}
+async function svEstimate(){
+  const e=document.getElementById('sv-est');if(!e)return;const ph=document.getElementById('sv-photo').checked;const {list,z0,z1}=svTiles(ph);
+  let saved=0;try{saved=(await (await caches.open(SAVED_CACHE)).keys()).length}catch(_){}
+  const mb=list.length*(ph?0.035:0.02);
+  e.textContent=list.length>SV_MAX?`範囲が広すぎます（${list.length.toLocaleString()}枚）。地図をもう少し拡大してから保存してください。`:
+    `保存する範囲：拡大レベル${z0}〜${z1}、${list.length.toLocaleString()}枚（約${mb<1?mb.toFixed(1):Math.round(mb)}MB）。保存済み：${saved.toLocaleString()}枚`;
+  document.getElementById('sv-go').disabled=list.length>SV_MAX;
+}
+document.getElementById('sv-photo').addEventListener('change',svEstimate);
+document.getElementById('sv-go').onclick=async()=>{
+  const c=navigator.connection;if(c&&(c.type==='cellular'))rpMsg('モバイル回線のようです。Wi-Fiにつないでからの保存をおすすめします。続けて保存しています…');
+  const {list}=svTiles(document.getElementById('sv-photo').checked);if(list.length>SV_MAX)return;
+  let cache;try{cache=await caches.open(SAVED_CACHE)}catch(_){rpMsg('この端末では地図を保存できません');return}
+  const btn=document.getElementById('sv-go');btn.disabled=true;let done=0,ok=0,skip=0,ng=0;
+  const one=async u=>{try{if(await cache.match(u)){skip++;return}const r=await fetch(u,{mode:'cors'});if(r.ok){await cache.put(u,r);ok++}else if(r.status!==404)ng++}catch(_){ng++}
+    finally{done++;if(done%10===0||done===list.length)rpMsg(`地図を保存しています… ${done.toLocaleString()}/${list.length.toLocaleString()}`)}};
+  for(let i=0;i<list.length;i+=6)await Promise.all(list.slice(i,i+6).map(one));
+  btn.disabled=false;
+  rpMsg(ng&&!ok?'地図を保存できませんでした。通信状態を確認してください':`地図を保存しました：新しく ${ok.toLocaleString()}枚（保存済み ${skip.toLocaleString()}枚）${ng?`・失敗 ${ng}枚`:''}。この範囲は通信をほとんど使わずに表示できます`);
+  svEstimate();
+};
+document.getElementById('sv-clear').onclick=async()=>{try{await caches.delete(SAVED_CACHE)}catch(_){}rpMsg('保存した地図を消しました');svEstimate()};
+function openRec(){rpMsg('');svEstimate();document.getElementById('rp-sum').textContent='この端末の記録：'+recSummary(collectRecords());document.getElementById('recp').hidden=false}
 document.getElementById('rec-open').onclick=openRec;
 document.getElementById('rec-close').onclick=()=>document.getElementById('recp').hidden=true;
 document.getElementById('recp').addEventListener('click',e=>{if(e.target.id==='recp')e.target.hidden=true});
