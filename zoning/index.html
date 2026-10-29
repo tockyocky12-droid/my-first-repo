@@ -109,6 +109,7 @@ table.sb td.n{text-align:right}
 .pbtn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
 .expw{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
 .expw .note{margin:0}
+.zver{font-size:10px;color:var(--muted);opacity:.7;margin-left:auto}
 .credit{font-size:11px;color:var(--muted);margin-top:8px}
 :focus-visible{outline:3px solid var(--sel);outline-offset:2px}
 /* パソコンなど横に広い画面：地図を左、集計・地番カードを右に並べる */
@@ -594,8 +595,9 @@ document.getElementById('cond-apply').onclick=()=>{readCond();try{localStorage.s
 document.getElementById('cond-reset').onclick=()=>{opts=Object.assign({},DEF);fillCond()};
 
 // ===== CSV書き出し（小班ごとの判定結果） =====
+const ZVER='版 2026-10-29z4';
 function exportBtn(){const w=el('div','expw');const b=el('button','pbtn ghost','判定結果をCSVで書き出す');b.type='button';b.onclick=exportCSV;
-  w.append(b,el('span','note','小班ごとの判定・傾斜などをExcelで開ける形で保存します'));return w}
+  w.append(b,el('span','note','小班ごとの判定・傾斜などをExcelで開ける形で保存します'),el('span','zver',ZVER));return w}
 function exportCSV(){
   const ovr=ovrMap();
   const head=['大字','地番','林小班','字名','林種','樹種','林齢','齢級','面積ha','平均傾斜(度)','保安林','現行計画区分','自動判定','判定理由','手直し','ゾーン'];
