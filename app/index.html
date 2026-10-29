@@ -247,7 +247,7 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
     </div>
     <div class="rp-step">
       <h3>送られてきた記録を取り込む</h3>
-      <p>受け取ったファイル（kinko-kiroku-○○.txt または .json）を選びます。同じ地番の記録は、ファイルの内容で上書きします。この端末にしかない記録は消えません。</p>
+      <p>受け取った記録ファイル（.txt または .json）を選びます。同じ地番の記録は、ファイルの内容で上書きします。この端末にしかない記録は消えません。</p>
       <div class="rp-btns"><span class="fwrap pwrap"><span class="pbtn">ファイルを選んで取り込む</span><input id="rec-file" class="fover" type="file" accept=".json,.txt,application/json,text/plain" aria-label="記録ファイルを選ぶ"></span></div>
     </div>
     <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-29h</span></p>
@@ -357,9 +357,20 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
 </section>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="config.js"></script>
 <script>
-const KINKO=[31.215,130.79]; // 錦江町役場付近
-const map=L.map('map',{zoomControl:true,preferCanvas:true}).setView(KINKO,13);
+// ---- 町ごとの設定（config.js）。無いときは錦江町の設定で動く ----
+const CFG=Object.assign({id:'kinko',title:'錦江町森林管理システム',ns:'',idb:'kinko-forest',recApp:'kinko-forest',filePrefix:'kinko-kiroku',
+  center:[31.215,130.79],oazaAlias:{'麓':'田代麓','川原':'田代川原'},town:{'田代麓':'田代町','田代川原':'田代町','神川':'大根占町','馬場':'大根占町','城元':'大根占町'},
+  townList:['田代町','大根占町'],csvHint:'錦江町分の森林簿CSV（田代町・大根占町の2ファイル）',kkOffice:'大隅森林管理署'},window.CFG||{});
+document.title=CFG.title;document.querySelector('header h1').textContent=CFG.title;
+// 端末への保存は町ごとに分ける（錦江町は今までどおりの名前、ほかの町は「町名/」を頭に付ける）
+const LS={_k:null,
+  getItem(k){return localStorage.getItem(CFG.ns+k)},setItem(k,v){localStorage.setItem(CFG.ns+k,v);this._k=null},removeItem(k){localStorage.removeItem(CFG.ns+k);this._k=null},
+  get length(){if(!this._k){this._k=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);
+    if(CFG.ns?k.startsWith(CFG.ns):!/^[a-z0-9]+\//.test(k))this._k.push(CFG.ns?k.slice(CFG.ns.length):k)}}return this._k.length},
+  key(i){if(!this._k)void this.length;return this._k[i]??null}};
+const map=L.map('map',{zoomControl:true,preferCanvas:true}).setView(CFG.center,13);
 const gsiAttr='<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>';
 const std=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',{maxZoom:18,attribution:gsiAttr});
 const photo=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',{maxZoom:18,attribution:gsiAttr});
@@ -378,18 +389,18 @@ const toastEl=document.getElementById('toast');let tt;
 function toast(t){toastEl.textContent=t;toastEl.hidden=false;clearTimeout(tt);tt=setTimeout(()=>toastEl.hidden=true,3000)}
 
 // ---- メモ（端末内保存） ----
-const store={get(k,ns='memo'){try{return localStorage.getItem(ns+':'+k)||''}catch(e){return''}},
-  set(k,v,ns='memo'){try{v?localStorage.setItem(ns+':'+k,v):localStorage.removeItem(ns+':'+k);return true}catch(e){return false}}};
+const store={get(k,ns='memo'){try{return LS.getItem(ns+':'+k)||''}catch(e){return''}},
+  set(k,v,ns='memo'){try{v?LS.setItem(ns+':'+k,v):LS.removeItem(ns+':'+k);return true}catch(e){return false}}};
 // ---- 伐採届（端末内保存） ----
 const BF=['date','method','from','to'];
 function bassaiRaw(p){const s=store.get(keyOf(p),'bassai');if(!s)return null;try{return JSON.parse(s)}catch(e){return null}}
 function bassaiOf(p){const o=bassaiRaw(p);return o&&BF.some(k=>o[k])?o:null}
 const mlabelOf=p=>store.get(keyOf(p),'mlabel');
 // 以前の版で伐採届に入れていた「地図に表示する文字」を、メモ画面表示へ移す
-function migrateLabels(){try{const ks=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('bassai:'))ks.push(k)}
-  ks.forEach(k=>{let o;try{o=JSON.parse(localStorage.getItem(k)||'null')}catch(e){return}if(!o||!o.label)return;
-    const mk='mlabel:'+k.slice(7);if(!localStorage.getItem(mk))localStorage.setItem(mk,o.label);
-    delete o.label;Object.keys(o).length?localStorage.setItem(k,JSON.stringify(o)):localStorage.removeItem(k)})}catch(e){}}
+function migrateLabels(){try{const ks=[];for(let i=0;i<LS.length;i++){const k=LS.key(i);if(k.startsWith('bassai:'))ks.push(k)}
+  ks.forEach(k=>{let o;try{o=JSON.parse(LS.getItem(k)||'null')}catch(e){return}if(!o||!o.label)return;
+    const mk='mlabel:'+k.slice(7);if(!LS.getItem(mk))LS.setItem(mk,o.label);
+    delete o.label;Object.keys(o).length?LS.setItem(k,JSON.stringify(o)):LS.removeItem(k)})}catch(e){}}
 migrateLabels();
 const today=()=>new Date().toISOString().slice(0,10);
 const isDone=b=>!!(b.to&&b.to<today());
@@ -406,9 +417,9 @@ function declutter(){ // 入力した文字はすべて表示する（重なっ�
   map.getContainer().classList.toggle('lz-low',map.getZoom()<LABEL_Z);
 }
 map.on('zoomend moveend',scheduleDeclutter);
-let lblOn=true;try{lblOn=localStorage.getItem('ui:lbl2')!=='off'}catch(e){} // 名前を「メモ表示」に変えたので、表示を入れた状態から始める
+let lblOn=true;try{lblOn=LS.getItem('ui:lbl2')!=='off'}catch(e){} // 名前を「メモ表示」に変えたので、表示を入れた状態から始める
 function setLbl(on){lblOn=on;map.getContainer().classList.toggle('lb-off',!on);document.getElementById('lbl').setAttribute('aria-pressed',on);
-  try{localStorage.setItem('ui:lbl2',on?'on':'off')}catch(e){} scheduleDeclutter()}
+  try{LS.setItem('ui:lbl2',on?'on':'off')}catch(e){} scheduleDeclutter()}
 document.getElementById('lbl').onclick=()=>{setLbl(!lblOn);toast(lblOn?(map.getZoom()<LABEL_Z?'さらに拡大するとメモの文字が出ます':'メモの文字を表示します'):'メモの文字を隠しました（伐採届の赤い枠は残ります）')};
 setLbl(lblOn);
 let bt;
@@ -484,7 +495,7 @@ function parseCSV(t){
   if(f!==''||row.length){row.push(f);rows.push(row)}
   return rows;
 }
-const OAZA_ALIAS={'麓':'田代麓','川原':'田代川原'};
+const OAZA_ALIAS=CFG.oazaAlias;
 function buildForest(texts){
   const out={};let n=0;
   const num=s=>{s=String(s||'').trim();return /^\d+(\.\d+)?$/.test(s)?Number(s):null};
@@ -507,15 +518,15 @@ function buildForest(texts){
   }
   return {data:out,rows:n};
 }
-const idb={open(){return new Promise((ok,ng)=>{try{const r=indexedDB.open('kinko-forest',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>ok(r.result);r.onerror=()=>ng(r.error)}catch(e){ng(e)}})},
+const idb={open(){return new Promise((ok,ng)=>{try{const r=indexedDB.open(CFG.idb,1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>ok(r.result);r.onerror=()=>ng(r.error)}catch(e){ng(e)}})},
   async get(k){const d=await this.open();return new Promise((ok,ng)=>{const q=d.transaction('kv').objectStore('kv').get(k);q.onsuccess=()=>ok(q.result);q.onerror=()=>ng(q.error)})},
   async set(k,v){const d=await this.open();return new Promise((ok,ng)=>{const tx=d.transaction('kv','readwrite');tx.objectStore('kv').put(v,k);tx.oncomplete=()=>ok();tx.onerror=()=>ng(tx.error)})}};
-const TOWN={'田代麓':'田代町','田代川原':'田代町','神川':'大根占町','馬場':'大根占町','城元':'大根占町'};
+const TOWN=CFG.town;
 const countRows=d=>Object.values(d).reduce((n,o)=>n+Object.values(o).reduce((m,a)=>m+a.length,0),0);
 function setForest(obj){
   forest=obj&&obj.data||{};const rows=countRows(forest);forestLoaded=rows>0;
   const towns=[...new Set(Object.keys(forest).map(o=>TOWN[o]||o))];
-  const missing=['田代町','大根占町'].filter(t=>!towns.includes(t));
+  const missing=CFG.townList.filter(t=>!towns.includes(t));
   const b=document.getElementById('fload');
   b.textContent=!forestLoaded?'森林簿CSVを読み込む':`森林簿 ${rows.toLocaleString()}件 ＋追加`;
   b.title=forestLoaded?`読込済み：${towns.join('・')}`:'';
@@ -558,7 +569,7 @@ const WORKS=[['植栽・地拵え（再造林）','#7cc47f',w=>/植栽|地拵|�
   ['間伐・枝打ち','#3b82c4',w=>/間伐|枝打/.test(w)],['主伐・択伐','#dc5a32',w=>/主伐|皆伐|択伐/.test(w)],['その他','#9a6fc4',w=>true]];
 function rirekiColor(p){const l=rkSort(rkGet(keyOf(p)));if(!l.length)return null;return WORKS.find(x=>x[2](l[0].work||''))[1]}
 // 絞り込み：色分けの項目ごとに、地図に出すかどうかを覚えておく（色＝項目）
-let hideT={species:[],age:[],rireki:[]};try{Object.assign(hideT,JSON.parse(localStorage.getItem('ui:tinthide')||'{}'))}catch(e){}
+let hideT={species:[],age:[],rireki:[]};try{Object.assign(hideT,JSON.parse(LS.getItem('ui:tinthide')||'{}'))}catch(e){}
 const filt=c=>c&&(hideT[tint]||[]).includes(c)?null:c;
 function tintColor(f){return filt(rawTint(f))}
 function rawTint(f){
@@ -582,13 +593,13 @@ function setTint(t){
   drawLegend();
   parcels.setStyle(styleFor);
   if(kkLayer)kkLayer.setStyle(kkStyle);
-  if(t==='rireki'){const n=(()=>{let c=0;try{for(let i=0;i<localStorage.length;i++)if(localStorage.key(i).startsWith('rireki:'))c++}catch(e){}return c})();toast(n?`施業履歴のある ${n} 地番を色分けしています`:'施業履歴はまだ記録されていません')}
+  if(t==='rireki'){const n=(()=>{let c=0;try{for(let i=0;i<LS.length;i++)if(LS.key(i).startsWith('rireki:'))c++}catch(e){}return c})();toast(n?`施業履歴のある ${n} 地番を色分けしています`:'施業履歴はまだ記録されていません')}
   else if(t!=='none'&&!forestLoaded)toast('色分けには森林簿の読み込みが必要です（「森林簿CSVを読み込む」ボタン）');
   else if(t!=='none'&&map.getZoom()<MINZ)toast('地図を拡大すると色分けが表示されます');
 }
 ['none','species','age','rireki'].forEach(k=>document.getElementById('t-'+k).onclick=()=>setTint(k));
 function legendItems(){return tint==='species'?SPECIES.map(x=>[x[0],x[1]]).concat([['その他','#8b7fb8']]):tint==='age'?AGES.map(x=>[x[0],x[1]]):tint==='rireki'?WORKS.map(x=>[x[0],x[1]]):[]}
-function setHide(list){hideT[tint]=list;try{localStorage.setItem('ui:tinthide',JSON.stringify(hideT))}catch(e){}
+function setHide(list){hideT[tint]=list;try{LS.setItem('ui:tinthide',JSON.stringify(hideT))}catch(e){}
   drawLegend();parcels.setStyle(styleFor);if(kkLayer)kkLayer.setStyle(kkStyle);if(selected)selected.setStyle(styleOf(selected))}
 function drawLegend(){
   const lg=document.getElementById('legend');lg.replaceChildren();const items=legendItems();lg.hidden=!items.length;if(!items.length)return;
@@ -622,7 +633,7 @@ function renderKK(p){
   if(p.kt)rows.push(['機能類型',p.kt]);
   if(p.kn)rows.push(['国有林名',p.kn]);
   if(p.tan)rows.push(['担当区',p.tan]);
-  rows.push(['管理','大隅森林管理署']);
+  rows.push(['管理',CFG.kkOffice]);
   const dl=document.createElement('dl');
   rows.forEach(([k,v])=>{const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=v;dl.append(dt,dd)});
   s.append(dl);box.append(s);
@@ -635,7 +646,7 @@ function renderForest(p){
   const cr=document.createElement('div');cr.className='credit';cr.textContent='この成果品は、鹿児島県森林資源情報データ（ダウンロード）から作成したものである';
   if(!forestLoaded){
     const n=document.createElement('div');n.className='nof';
-    n.append('森林簿が読み込まれていません。鹿児島県のサイトから、錦江町分の森林簿CSV（田代町・大根占町の2ファイル）をダウンロードして読み込んでください。一度読み込めば、この端末に保存されます。');
+    n.append('森林簿が読み込まれていません。鹿児島県のサイトから、'+CFG.csvHint+'をダウンロードして読み込んでください。一度読み込めば、この端末に保存されます。');
     const r=document.createElement('div');r.className='frow';
     const b=document.createElement('span');b.className='fwrap';const bs=document.createElement('span');bs.className='fbtn';bs.textContent='CSVを読み込む';const bi=document.createElement('input');bi.type='file';bi.accept='.csv,text/csv,text/comma-separated-values,application/csv,application/vnd.ms-excel,text/plain';bi.multiple=true;bi.className='fover';bi.setAttribute('aria-label','森林簿CSVを選ぶ');bi.addEventListener('change',onForestFiles);b.append(bs,bi);
     const a=document.createElement('a');a.href='https://www.pref.kagoshima.jp/ad12/shinrin-open.html';a.target='_blank';a.rel='noopener';a.textContent='県のダウンロードページ';
@@ -721,7 +732,7 @@ function rkSet(k,a){return store.set(k,a.length?JSON.stringify(a):'','rireki')}
 const rkSort=a=>a.slice().sort((x,y)=>(y.date||'').localeCompare(x.date||'')||(y.upd||'').localeCompare(x.upd||''));
 let rkEdit=null; // 編集中の記録のid（新規はnull）
 function rkWhoList(){ // 入力したことのある実施者を候補に出す
-  const s=new Set();try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('rireki:'))JSON.parse(localStorage.getItem(k)||'[]').forEach(e=>e.who&&s.add(e.who))}}catch(e){}
+  const s=new Set();try{for(let i=0;i<LS.length;i++){const k=LS.key(i);if(k.startsWith('rireki:'))JSON.parse(LS.getItem(k)||'[]').forEach(e=>e.who&&s.add(e.who))}}catch(e){}
   const dl=document.getElementById('rk-whos');dl.replaceChildren(...[...s].slice(0,30).map(v=>{const o=document.createElement('option');o.value=v;return o}))}
 function renderRireki(){
   if(!selected)return;const p=selected.feature.properties,list=rkSort(rkGet(keyOf(p)));
@@ -777,10 +788,10 @@ function setTopH(){const m=document.getElementById('maparea');if(m)document.docu
 window.addEventListener('resize',setTopH);setTopH();
 // ---- カードのタブと最小化 ----
 const TABS=['forest','rireki','bassai','memo'];
-let curTab='forest';try{curTab=localStorage.getItem('ui:tab')||'forest'}catch(e){}
+let curTab='forest';try{curTab=LS.getItem('ui:tab')||'forest'}catch(e){}
 if(!TABS.includes(curTab))curTab='forest';
 function setTab(t){curTab=t;TABS.forEach(k=>{document.getElementById('tab-'+k).setAttribute('aria-selected',k===t);document.getElementById('p-'+k).hidden=k!==t});
-  try{localStorage.setItem('ui:tab',t)}catch(e){} if(t==='memo')fitMemo()}
+  try{LS.setItem('ui:tab',t)}catch(e){} if(t==='memo')fitMemo()}
 TABS.forEach(k=>document.getElementById('tab-'+k).onclick=()=>setTab(k));
 function setMin(m){const sh=document.getElementById('sheet');sh.classList.toggle('min',m);
   document.getElementById('s-head').setAttribute('aria-expanded',!m);
@@ -796,9 +807,9 @@ function updateDots(){if(!selected)return;const p=selected.feature.properties;
 // ---- 地番データ：大字ごとに、画面に入ったときだけ読み込む ----
 const index=[];let districts=[];const loading={};
 const MINZ=14;
-// ---- 国有林（国土数値情報「国有林野」から錦江町分を取り出したもの） ----
+// ---- 国有林（国土数値情報「国有林野」からこの町の分を取り出したもの） ----
 // 国有林は通常は表示せず、「国有林」ボタンで表示する（Groundyと同じ方式）
-let kkLayer=null,kkRoads=null,kkLoading=null,kkOn=false;try{kkOn=localStorage.getItem('ui:kokuyu2')==='on'}catch(e){}
+let kkLayer=null,kkRoads=null,kkLoading=null,kkOn=false;try{kkOn=LS.getItem('ui:kokuyu2')==='on'}catch(e){}
 const KK_RS={'単':'育成単層林','複':'育成複層林','天':'天然生林','育':'育成天然林','人伐':'人工林伐採跡地'};
 const kkLin=n=>{const a=String(n||'').split('_');return a.length===3?`${a[0]}林班 ${a[2]}小班`:(n||'')};
 const KK_HO={'水涵保':'水源かん養保安林','土流保':'土砂流出防備保安林','土崩保':'土砂崩壊防備保安林'};
@@ -831,7 +842,7 @@ function kkApply(){
   if(kkOn&&map.getZoom()>=MINZ){if(!map.hasLayer(kkLayer)){kkLayer.addTo(map);kkRoads.addTo(map);kkLayer.bringToBack()}}
   else{if(map.hasLayer(kkLayer)){kkLayer.remove();kkRoads.remove()}}
 }
-document.getElementById('kk').onclick=()=>{kkOn=!kkOn;zoomHint();try{localStorage.setItem('ui:kokuyu2',kkOn?'on':'off')}catch(e){}kkApply();
+document.getElementById('kk').onclick=()=>{kkOn=!kkOn;zoomHint();try{LS.setItem('ui:kokuyu2',kkOn?'on':'off')}catch(e){}kkApply();
   toast(kkOn?(map.getZoom()<MINZ?'地図を拡大すると国有林が表示されます':'国有林を表示しました（水色の点線、茶色の線は林道）'):'国有林を隠しました')};
 map.on('zoomend',kkApply);
 function zoomHint(){const z=document.getElementById('zhint');z.hidden=map.getZoom()>=MINZ;z.textContent=kkOn?'地図を拡大すると、民有林（地番）と国有林の境界が表示されます':'地図を拡大すると、地番の境界が表示されます'}
@@ -930,11 +941,11 @@ btn.onclick=()=>{
 
 // ---- 記録の受け渡し（メモ・地積・伐採届をファイルで別の端末へ） ----
 const REC_NS=['memo','mlabel','chiseki','bassai','rireki'];
-function collectRecords(){const items={};try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(REC_NS.some(n=>k.startsWith(n+':')))items[k]=localStorage.getItem(k)}}catch(e){}return items}
+function collectRecords(){const items={};try{for(let i=0;i<LS.length;i++){const k=LS.key(i);if(REC_NS.some(n=>k.startsWith(n+':')))items[k]=LS.getItem(k)}}catch(e){}return items}
 function recSummary(items){const c={memo:0,mlabel:0,chiseki:0,bassai:0,rireki:0};Object.entries(items).forEach(([k,v])=>{const n=k.split(':')[0];if(n==='rireki'){try{c.rireki+=JSON.parse(v).length}catch(e){}}else if(n in c)c[n]++});return `メモ表示 ${c.mlabel}件・メモ内部記録 ${c.memo}件・地積 ${c.chiseki}件・伐採届 ${c.bassai}件・施業履歴 ${c.rireki}件`}
 function recFile(){const items=collectRecords();const d=new Date();const stamp=d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'-'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0');
-  const body=JSON.stringify({app:'kinko-forest',kind:'records',version:1,exportedAt:d.toISOString(),items},null,1);
-  return {file:new File([body],`kinko-kiroku-${stamp}.json`,{type:'application/json'}),txt:new File([body],`kinko-kiroku-${stamp}.txt`,{type:'text/plain'}),count:Object.keys(items).length,items}}
+  const body=JSON.stringify({app:CFG.recApp,kind:'records',version:1,exportedAt:d.toISOString(),items},null,1);
+  return {file:new File([body],`${CFG.filePrefix}-${stamp}.json`,{type:'application/json'}),txt:new File([body],`${CFG.filePrefix}-${stamp}.txt`,{type:'text/plain'}),count:Object.keys(items).length,items}}
 function rpMsg(t){const m=document.getElementById('rp-msg');m.textContent=t;m.hidden=!t}
 function openRec(){rpMsg('');document.getElementById('rp-sum').textContent='この端末の記録：'+recSummary(collectRecords());document.getElementById('recp').hidden=false}
 document.getElementById('rec-open').onclick=openRec;
@@ -958,16 +969,16 @@ document.getElementById('rec-save').onclick=()=>{const r=recFile();if(!r.count){
 document.getElementById('rec-file').addEventListener('change',async e=>{
   const f=e.target.files[0];e.target.value='';if(!f)return;
   try{const o=JSON.parse(await f.text());
-    if(!o||o.app!=='kinko-forest'||!o.items)throw new Error('このアプリの記録ファイルではないようです');
+    if(!o||o.app!==CFG.recApp||!o.items)throw new Error('このアプリの記録ファイルではないようです');
     let add=0,upd=0;const cur=collectRecords();
     for(const [k,v] of Object.entries(o.items)){if(!REC_NS.some(n=>k.startsWith(n+':'))||typeof v!=='string')continue;
       if(k.startsWith('rireki:')){ // 施業履歴は1件ずつ合わせる（同じ記録は新しい内容に、無い記録は追加）
         let inc=[],mine=[];try{inc=JSON.parse(v)}catch(_){continue}try{mine=JSON.parse(cur[k]||'[]')}catch(_){}
         let ch=false;for(const e of inc){if(!e||!e.id)continue;const i=mine.findIndex(x=>x.id===e.id);
           if(i<0){mine.push(e);add++;ch=true}else if(JSON.stringify(mine[i])!==JSON.stringify(e)&&(e.upd||'')>=(mine[i].upd||'')){mine[i]=e;upd++;ch=true}}
-        if(ch){try{localStorage.setItem(k,JSON.stringify(mine))}catch(_){throw new Error('この端末に保存できませんでした（空き容量を確認してください）')}}
+        if(ch){try{LS.setItem(k,JSON.stringify(mine))}catch(_){throw new Error('この端末に保存できませんでした（空き容量を確認してください）')}}
         continue}
-      if(cur[k]===v)continue; if(k in cur)upd++;else add++; try{localStorage.setItem(k,v)}catch(_){throw new Error('この端末に保存できませんでした（空き容量を確認してください）')}}
+      if(cur[k]===v)continue; if(k in cur)upd++;else add++; try{LS.setItem(k,v)}catch(_){throw new Error('この端末に保存できませんでした（空き容量を確認してください）')}}
     migrateLabels();
     if(parcels){parcels.eachLayer(l=>{applyLabel(l)});parcels.setStyle(styleFor)}
     if(selected)openSheet(selected);

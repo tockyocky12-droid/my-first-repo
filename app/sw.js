@@ -1,7 +1,10 @@
 // 錦江町 森林管理システム：オフラインでも開けるようにするための仕組み
-const VER='v27';
-const SHELL='forest-shell-'+VER, DATA='forest-data-v1', TILES='forest-tiles-v1';
-const SHELL_FILES=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png',
+const VER='v28';
+// この仕組みが置かれたフォルダ（例：/my-first-repo/app/）。町ごとのフォルダで同じファイルを使う
+const BASE=new URL(self.registration.scope).pathname;
+const PFX=BASE.endsWith('/app/')?'forest':BASE.split('/').filter(Boolean).pop(); // 錦江町は今までどおり「forest」
+const SHELL=PFX+'-shell-'+VER, DATA=PFX+'-data-v1', TILES=PFX+'-tiles-v1';
+const SHELL_FILES=['./','./index.html','./config.js','./manifest.webmanifest','./icon-192.png','./icon-512.png',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'];
 const TILE_MAX=4000;
@@ -10,7 +13,7 @@ self.addEventListener('install',e=>{
   e.waitUntil(caches.open(SHELL).then(c=>Promise.all(SHELL_FILES.map(u=>c.add(u).catch(()=>{})))).then(()=>self.skipWaiting()));
 });
 self.addEventListener('activate',e=>{
-  e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k.startsWith('forest-shell-')&&k!==SHELL).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));
+  e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k.startsWith(PFX+'-shell-')&&k!==SHELL).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));
 });
 
 async function networkFirst(req,cacheName,fresh){
@@ -47,12 +50,12 @@ async function trimCache(c,max){
 self.addEventListener('fetch',e=>{
   const req=e.request;if(req.method!=='GET')return;
   const u=new URL(req.url);
-  if(req.mode==='navigate'||(u.origin===location.origin&&(u.pathname.endsWith('/app/index.html')||u.pathname.endsWith('/app/')))){e.respondWith(networkFirst(req,SHELL,true));return}
+  if(req.mode==='navigate'||(u.origin===location.origin&&(u.pathname===BASE+'index.html'||u.pathname===BASE))){e.respondWith(networkFirst(req,SHELL,true));return}
   // 目録（小さい）は毎回最新を確認、地番データ本体は版番号が同じ間は端末の保存分を使う
-  if(u.origin===location.origin&&u.pathname.endsWith('/app/data/index.json')){e.respondWith(networkFirst(req,DATA,true));return}
-  if(u.origin===location.origin&&u.pathname.includes('/app/data/')){e.respondWith(dataCache(req));return}
-  if(u.origin===location.origin&&u.pathname.endsWith('/app/kokuyu/index.json')){e.respondWith(networkFirst(req,DATA,true));return}
-  if(u.origin===location.origin&&u.pathname.includes('/app/kokuyu/')){e.respondWith(dataCache(req));return}
+  if(u.origin===location.origin&&u.pathname===BASE+'data/index.json'){e.respondWith(networkFirst(req,DATA,true));return}
+  if(u.origin===location.origin&&u.pathname.startsWith(BASE+'data/')){e.respondWith(dataCache(req));return}
+  if(u.origin===location.origin&&u.pathname===BASE+'kokuyu/index.json'){e.respondWith(networkFirst(req,DATA,true));return}
+  if(u.origin===location.origin&&u.pathname.startsWith(BASE+'kokuyu/')){e.respondWith(dataCache(req));return}
   if(u.hostname==='cyberjapandata.gsi.go.jp'){e.respondWith(cacheFirst(req,TILES,TILE_MAX));return}
   if(u.hostname==='cdnjs.cloudflare.com'||u.hostname==='fonts.googleapis.com'||u.hostname==='fonts.gstatic.com'){e.respondWith(cacheFirst(req,SHELL));return}
   if(u.origin===location.origin){e.respondWith(networkFirst(req,SHELL))}
