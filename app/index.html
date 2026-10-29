@@ -566,7 +566,7 @@ parcels=L.geoJSON(null,{style:styleFor,onEachFeature:(f,l)=>{l.on('click',()=>op
 function loadDistrict(d){
   if(loading[d.file])return loading[d.file];
   toast(`${d.oaza} の地番を読み込んでいます…`);
-  return loading[d.file]=fetch('data/'+d.file).then(r=>{if(!r.ok)throw 0;return r.json()})
+  return loading[d.file]=fetch('data/'+d.file+(d.v?'?v='+d.v:'')).then(r=>{if(!r.ok)throw 0;return r.json()})
     .then(gj=>{parcels.addData(gj);toast(`${d.oaza}：${d.count.toLocaleString()} 筆を表示`)})
     .catch(()=>{delete loading[d.file];toast(`${d.oaza} の読み込みに失敗しました。通信状態を確認してください`)});
 }
