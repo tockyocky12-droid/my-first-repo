@@ -107,6 +107,8 @@ table.sb td.n{text-align:right}
 .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .pbtn{font:inherit;font-size:14px;padding:9px 14px;border-radius:8px;border:0;background:var(--accent);color:var(--accent-fg);cursor:pointer}
 .pbtn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+.expw{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.expw .note{margin:0}
 .credit{font-size:11px;color:var(--muted);margin-top:8px}
 :focus-visible{outline:3px solid var(--sel);outline-offset:2px}
 /* パソコンなど横に広い画面：地図を左、集計・地番カードを右に並べる */
@@ -138,7 +140,6 @@ table.sb td.n{text-align:right}
   </div>
   <span class="fwrap" id="fload-wrap"><span class="fbtn" id="fload">森林簿CSVを読み込む</span><input id="ffile" class="fover" type="file" multiple accept=".csv,text/csv,text/comma-separated-values,application/csv,application/vnd.ms-excel,text/plain" aria-label="森林簿CSVを選ぶ"></span>
   <button id="kk" class="hbtn kkbtn" type="button" aria-pressed="false">国有林</button>
-  <button id="export" class="hbtn" type="button" hidden>CSV書き出し</button>
 </div>
 <div id="maparea"><div id="map"></div><div id="zhint" class="zhint" hidden>地図を拡大すると、民有林（地番）と国有林の境界が表示されます</div></div>
 <section id="panel" aria-live="polite"></section>
@@ -332,7 +333,6 @@ function onForestLoaded(){
   const miss=['田代町','大根占町'].filter(t=>!towns().includes(t));
   document.getElementById('fload').textContent=!rowsAll.length?'森林簿CSVを読み込む':miss.length?`${miss.join('・')}のCSVを追加`:'森林簿を読み込み直す';
   document.getElementById('fload-wrap').hidden=rowsAll.length>0&&!miss.length;
-  document.getElementById('export').hidden=!rowsAll.length;
   restyle();showSummary();
 }
 document.getElementById('ffile').addEventListener('change',async e=>{
@@ -501,6 +501,7 @@ function showSummary(){
     panel.append(tb,el('p','note','森林簿の面積（ha）を、その小班の地番の平均傾斜で分けて集計しています。「条件」で、急な森林を木材生産林から外す判定に使えます。'));
     const rb=el('button','pbtn ghost','傾斜を計算し直す');rb.type='button';rb.style.marginTop='8px';rb.onclick=runSlope;panel.append(rb);
     panel.append(el('p','credit','標高：国土地理院 地理院タイル（標高タイル）を加工して作成'));
+    panel.append(exportBtn());
     panel.append(el('p','credit','この成果品は、鹿児島県森林資源情報データ（ダウンロード）から作成したものである'));return}
   if(view==='zone'){
     const {res,total,manual}=summarize();
@@ -525,6 +526,7 @@ function showSummary(){
     panel.append(tb,el('p','note','森林簿に記載された、市町村森林整備計画の区分です。ゾーン案と見比べるのに使います。'));
   }
   const ks=kkSummary();if(ks)panel.append(ks);
+  panel.append(exportBtn());
   panel.append(el('p','credit','この成果品は、鹿児島県森林資源情報データ（ダウンロード）から作成したものである'));
 }
 
@@ -592,7 +594,9 @@ document.getElementById('cond-apply').onclick=()=>{readCond();try{localStorage.s
 document.getElementById('cond-reset').onclick=()=>{opts=Object.assign({},DEF);fillCond()};
 
 // ===== CSV書き出し（小班ごとの判定結果） =====
-document.getElementById('export').onclick=()=>{
+function exportBtn(){const w=el('div','expw');const b=el('button','pbtn ghost','判定結果をCSVで書き出す');b.type='button';b.onclick=exportCSV;
+  w.append(b,el('span','note','小班ごとの判定・傾斜などをExcelで開ける形で保存します'));return w}
+function exportCSV(){
   const ovr=ovrMap();
   const head=['大字','地番','林小班','字名','林種','樹種','林齢','齢級','面積ha','平均傾斜(度)','保安林','現行計画区分','自動判定','判定理由','手直し','ゾーン'];
   const q=v=>{v=v==null?'':String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
