@@ -242,7 +242,7 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
       <p>受け取ったファイル（kinko-kiroku-○○.txt または .json）を選びます。同じ地番の記録は、ファイルの内容で上書きします。この端末にしかない記録は消えません。</p>
       <div class="rp-btns"><span class="fwrap pwrap"><span class="pbtn">ファイルを選んで取り込む</span><input id="rec-file" class="fover" type="file" accept=".json,.txt,application/json,text/plain" aria-label="記録ファイルを選ぶ"></span></div>
     </div>
-    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-29e</span></p>
+    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-29f</span></p>
   </div>
 </div>
 <form id="search" autocomplete="off">
@@ -392,7 +392,7 @@ function applyLabel(l){
   scheduleDeclutter();
 }
 // ラベルの重なりを間引く：伐採期間中→新しい受理日の順に優先して表示し、重なるものは隠す
-const LABEL_Z=16;let dt2;
+const LABEL_Z=14;let dt2; // 文字は地番の境界が出る拡大率と同じから表示
 function scheduleDeclutter(){clearTimeout(dt2);dt2=setTimeout(declutter,120)}
 function declutter(){
   const c=map.getContainer();c.classList.toggle('lz-low',map.getZoom()<LABEL_Z);
@@ -408,9 +408,9 @@ function declutter(){
     if(hit)it.el.classList.add('hid');else placed.push(r)});
 }
 map.on('zoomend moveend',scheduleDeclutter);
-let lblOn=true;try{lblOn=localStorage.getItem('ui:lbl')!=='off'}catch(e){}
+let lblOn=true;try{lblOn=localStorage.getItem('ui:lbl2')!=='off'}catch(e){} // 名前を「メモ表示」に変えたので、表示を入れた状態から始める
 function setLbl(on){lblOn=on;map.getContainer().classList.toggle('lb-off',!on);document.getElementById('lbl').setAttribute('aria-pressed',on);
-  try{localStorage.setItem('ui:lbl',on?'on':'off')}catch(e){} scheduleDeclutter()}
+  try{localStorage.setItem('ui:lbl2',on?'on':'off')}catch(e){} scheduleDeclutter()}
 document.getElementById('lbl').onclick=()=>{setLbl(!lblOn);toast(lblOn?(map.getZoom()<LABEL_Z?'さらに拡大するとメモの文字が出ます':'メモの文字を表示します'):'メモの文字を隠しました（伐採届の赤い枠は残ります）')};
 setLbl(lblOn);
 let bt;
@@ -691,7 +691,9 @@ document.getElementById('s-close').onclick=()=>{document.getElementById('sheet')
 let ct;document.getElementById('chiseki').addEventListener('input',e=>{updateRatio();clearTimeout(ct);const k=currentKey,v=e.target.value.trim();
   ct=setTimeout(()=>{if(!store.set(k,v,'chiseki'))toast('地積を保存できませんでした（ブラウザの設定を確認してください）')},500)});
 let lt2;document.getElementById('m-label').addEventListener('input',e=>{clearTimeout(lt2);const layer=selected,k=currentKey,v=e.target.value.trim();if(!layer)return;
-  lt2=setTimeout(()=>{if(!store.set(k,v,'mlabel')){toast('保存できませんでした（ブラウザの設定を確認してください）');return}applyLabel(layer);updateDots()},400)});
+  lt2=setTimeout(()=>{if(!store.set(k,v,'mlabel')){toast('保存できませんでした（ブラウザの設定を確認してください）');return}applyLabel(layer);updateDots();
+    if(v&&!lblOn)toast('上の「メモ表示」ボタンが切れているため、地図に文字が出ていません');
+    else if(v&&map.getZoom()<LABEL_Z)toast('地図をもう少し拡大すると、文字が表示されます')},400)});
 let mt;document.getElementById('memo').addEventListener('input',e=>{clearTimeout(mt);const k=currentKey,v=e.target.value;
   mt=setTimeout(()=>{document.getElementById('saved').textContent=store.set(k,v)?'保存しました':'保存できませんでした（ブラウザの設定を確認してください）';updateDots()},500)});
 document.getElementById('memo').addEventListener('input',fitMemo);
