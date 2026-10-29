@@ -250,7 +250,7 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
       <p>受け取った記録ファイル（.txt または .json）を選びます。同じ地番の記録は、ファイルの内容で上書きします。この端末にしかない記録は消えません。</p>
       <div class="rp-btns"><span class="fwrap pwrap"><span class="pbtn">ファイルを選んで取り込む</span><input id="rec-file" class="fover" type="file" accept=".json,.txt,application/json,text/plain" aria-label="記録ファイルを選ぶ"></span></div>
     </div>
-    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-29h</span></p>
+    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-29i</span></p>
   </div>
 </div>
 <form id="search" autocomplete="off">
@@ -513,7 +513,8 @@ function buildForest(texts){
         m:g(r,'施業方法CD').replace(/　/g,' '),chi:g(r,'地位CD'),sp,hy:g(r,'施業履歴年度'),hw:g(r,'施業履歴作業CD'),
         fn:['木材等生産CD','水源かん養CD','山地災害防止CD','生活環境保全CD','保健文化CD'].map(k=>g(r,k))};
       Object.keys(rec).forEach(k=>{const v=rec[k];if(v===''||v==null||(Array.isArray(v)&&(!v.length||v.every(x=>x===''))))delete rec[k]});
-      ((out[o]||(out[o]={}))[cb]||(out[o][cb]=[])).push(rec);n++;
+      // 「1342 1343」のように1行に複数の地番が書かれていたら、それぞれの地番に結び付ける
+      for(const c of cb.split(/\s+/).filter(Boolean))((out[o]||(out[o]={}))[c]||(out[o][c]=[])).push(rec);n++;
     }
   }
   return {data:out,rows:n};
@@ -522,7 +523,8 @@ const idb={open(){return new Promise((ok,ng)=>{try{const r=indexedDB.open(CFG.id
   async get(k){const d=await this.open();return new Promise((ok,ng)=>{const q=d.transaction('kv').objectStore('kv').get(k);q.onsuccess=()=>ok(q.result);q.onerror=()=>ng(q.error)})},
   async set(k,v){const d=await this.open();return new Promise((ok,ng)=>{const tx=d.transaction('kv','readwrite');tx.objectStore('kv').put(v,k);tx.oncomplete=()=>ok();tx.onerror=()=>ng(tx.error)})}};
 const TOWN=CFG.town;
-const countRows=d=>Object.values(d).reduce((n,o)=>n+Object.values(o).reduce((m,a)=>m+a.length,0),0);
+// 小班の件数（複数の地番に結び付けた小班は1件と数える）
+const countRows=d=>{const s=new Set();Object.values(d).forEach(o=>Object.values(o).forEach(a=>a.forEach(r=>s.add(r))));return s.size};
 function setForest(obj){
   forest=obj&&obj.data||{};const rows=countRows(forest);forestLoaded=rows>0;
   const towns=[...new Set(Object.keys(forest).map(o=>TOWN[o]||o))];
