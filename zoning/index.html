@@ -134,6 +134,7 @@ table.sb td.n{text-align:right}
   <div class="seg" role="group" aria-label="塗り分け">
     <button id="v-zone" aria-pressed="true">ゾーン案</button>
     <button id="v-plan" aria-pressed="false">現行計画の区分</button>
+    <button id="v-slope" aria-pressed="false">傾斜</button>
   </div>
   <span class="fwrap" id="fload-wrap"><span class="fbtn" id="fload">森林簿CSVを読み込む</span><input id="ffile" class="fover" type="file" multiple accept=".csv,text/csv,text/comma-separated-values,application/csv,application/vnd.ms-excel,text/plain" aria-label="森林簿CSVを選ぶ"></span>
   <button id="kk" class="hbtn kkbtn" type="button" aria-pressed="false">国有林</button>
@@ -152,6 +153,7 @@ table.sb td.n{text-align:right}
     <div class="opt"><input type="checkbox" id="o-plan"><label for="o-plan">現行計画の水源涵養・山地災害防止の区分は「環境保全林」にする<small>市町村森林整備計画の公益的機能別施業森林の区分を引き継ぎます</small></label></div>
     <div class="opt"><input type="checkbox" id="o-sanchi"><label for="o-sanchi">山地災害防止が「高」の人工林は「環境保全林」にする<small>木材生産が「高」でも環境保全林に入れます。対象がかなり広くなります</small></label></div>
     <div class="opt"><input type="checkbox" id="o-suigen"><label for="o-suigen">水源かん養が「高」の人工林は「環境保全林」にする</label></div>
+    <div class="opt"><input type="checkbox" id="o-slope"><label for="o-slope">平均傾斜が <select id="o-slopev" aria-label="傾斜"></select> 以上の人工林・伐採跡地は「環境保全林」にする<small id="o-slope-note">国土地理院の標高データから計算した、地番ごとの平均傾斜を使います。先に「傾斜」表示で傾斜を計算してください</small></label></div>
     <div class="opt"><input type="checkbox" id="o-kyu"><label for="o-kyu">木材生産林は <select id="o-kyuv" aria-label="齢級"></select> 以上の人工林に限る<small>若い人工林は、育つまで環境保全林として扱います</small></label></div>
     <div class="btns"><button class="pbtn" id="cond-apply" type="button">この条件で判定する</button><button class="pbtn ghost" id="cond-reset" type="button">はじめの条件に戻す</button></div>
   </div>
@@ -179,12 +181,12 @@ const planOf=s=>{if(!s)return null;
   // 「…（特に効率的な施業が可能な森林を除く）」は一般の木材等生産に数える
   if(s.includes('特に効率的')&&!s.includes('除く'))return PLAN[0];
   return PLAN.slice(1).find(p=>s.includes(p.m))||null};
-const DEF={hoan:true,plan:true,sanchi:false,suigen:false,kyu:false,kyuv:10};
+const DEF={hoan:true,plan:true,sanchi:false,suigen:false,kyu:false,kyuv:10,slope:false,slopev:35};
 let opts=Object.assign({},DEF);try{Object.assign(opts,JSON.parse(localStorage.getItem('zoning:opts')||'{}'))}catch(e){}
 
 // 判定：小班1件 → [ゾーン, 理由]
 function zoneOf(r){
-  const t=r.lt||'',f=r.fn||{};
+  const t=r.lt||'',f=r.fn||{};const s=slopeOf(r);
   if(t==='竹林')return['satoyama','竹林'];
   if(t==='天然林')return['tennen','天然林'];
   if(t==='人工林'||t==='伐採跡地'||t==='未立木地'){
@@ -195,14 +197,85 @@ function zoneOf(r){
       if(opts.sanchi&&f.sanchi==='高')return['hozen','山地災害防止「高」'];
       if(opts.suigen&&f.suigen==='高')return['hozen','水源かん養「高」'];
       if(f.mokuzai==='高'){
+        if(opts.slope&&s!=null&&s>=opts.slopev)return['hozen',`木材生産「高」だが平均傾斜${s.toFixed(0)}度（${opts.slopev}度以上）`];
         if(opts.kyu&&r.kyu!=null&&r.kyu<opts.kyuv)return['hozen',`木材生産「高」だが${r.kyu}齢級（${opts.kyuv}齢級未満）`];
         return['mokuzai','木材生産「高」'];
       }
       return['hozen',`木材生産「${f.mokuzai||'—'}」`];
     }
+    if(f.mokuzai==='高'&&opts.slope&&s!=null&&s>=opts.slopev)return['hozen',`${t}（平均傾斜${s.toFixed(0)}度・${opts.slopev}度以上）`];
     return f.mokuzai==='高'?['mokuzai',t+'（木材生産「高」・再造林）']:['hozen',t+`（木材生産「${f.mokuzai||'—'}」）`];
   }
   return['hozen',t||'林種不明'];
+}
+
+// ===== 傾斜（国土地理院の標高タイル dem10b を、この端末の中で読んで計算する） =====
+// 標高タイル：https://maps.gsi.go.jp/development/demtile.html （10mメッシュ、ズーム14）
+const DEM_Z=14,DEM_URL='https://cyberjapandata.gsi.go.jp/xyz/dem10b_png/14/{x}/{y}.png',DEM_VER='dem10b-1';
+const SLOPE_CLS=[{k:'s0',n:'15度未満（緩）',max:15,c:'#cfe8b0'},{k:'s1',n:'15〜25度',max:25,c:'#8cc56b'},{k:'s2',n:'25〜35度',max:35,c:'#e7a24a'},{k:'s3',n:'35度以上（急）',max:999,c:'#c0392b'}];
+const slopeClass=s=>SLOPE_CLS.find(x=>s<x.max);
+let slopes={};          // slopes['大字|地番'] = 平均傾斜（度）
+let slopeBusy=false;
+const pslKey=p=>(p['大字名']||'')+'|'+nz(p['地番']);
+const slopeReady=()=>Object.keys(slopes).length>0;
+function slopeOf(r){const c=String(r.cb||'').split(/\s+/)[0];const v=slopes[r.o+'|'+c];return v==null?null:v}
+const W=256*Math.pow(2,DEM_Z);
+const lon2px=lon=>(lon+180)/360*W;
+const lat2py=lat=>{const s=Math.sin(lat*Math.PI/180);return (0.5-Math.log((1+s)/(1-s))/(4*Math.PI))*W};
+async function demTile(tx,ty,cache){
+  const k=tx+'/'+ty;if(cache.has(k))return cache.get(k);
+  const pr=(async()=>{
+    const r=await fetch(DEM_URL.replace('{x}',tx).replace('{y}',ty),{mode:'cors'});
+    if(r.status===404)return null; // 海など、データの無いところ
+    if(!r.ok)throw new Error('標高データを読み込めませんでした（'+r.status+'）');
+    const bmp=await createImageBitmap(await r.blob());
+    const cv=document.createElement('canvas');cv.width=256;cv.height=256;const cx=cv.getContext('2d',{willReadFrequently:true});cx.drawImage(bmp,0,0);
+    const d=cx.getImageData(0,0,256,256).data,e=new Float32Array(65536);
+    for(let i=0;i<65536;i++){const v=d[i*4]*65536+d[i*4+1]*256+d[i*4+2];e[i]=v===8388608?NaN:(v<8388608?v*0.01:(v-16777216)*0.01)}
+    return e})();
+  cache.set(k,pr);return pr;
+}
+function inRing(x,y,ring){let c=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++){const [xi,yi]=ring[i],[xj,yj]=ring[j];
+  if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))c=!c}return c}
+async function computeSlopes(onProgress){
+  // 森林簿と結び付く地番だけを対象にする
+  const list=await Promise.all(districts.map(d=>fetch('../app/data/'+d.file+(d.v?'?v='+d.v:'')).then(r=>r.json())));
+  const targets=[];
+  list.forEach(gj=>gj.features.forEach(f=>{const p=f.properties;if(!(forest[p['大字名']]||{})[nz(p['地番'])])return;
+    const g=f.geometry;const polys=g.type==='Polygon'?[g.coordinates]:g.type==='MultiPolygon'?g.coordinates:[];
+    const pp=polys.map(poly=>poly.map(ring=>ring.map(([lo,la])=>[lon2px(lo),lat2py(la)])));
+    let x0=1e18,y0=1e18,x1=-1e18,y1=-1e18;pp.forEach(poly=>poly[0].forEach(([x,y])=>{x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y)}));
+    if(pp.length)targets.push({k:pslKey(p),pp,x0,y0,x1,y1,lat:g.type==='Polygon'?g.coordinates[0][0][1]:g.coordinates[0][0][0][1]})}));
+  // 必要な標高タイル
+  const need=new Set();targets.forEach(t=>{for(let tx=Math.floor((t.x0-1)/256);tx<=Math.floor((t.x1+1)/256);tx++)for(let ty=Math.floor((t.y0-1)/256);ty<=Math.floor((t.y1+1)/256);ty++)need.add(tx+'/'+ty)});
+  const cache=new Map(),tiles=[...need];let done=0;
+  for(let i=0;i<tiles.length;i+=6){await Promise.all(tiles.slice(i,i+6).map(k=>{const [tx,ty]=k.split('/').map(Number);return demTile(tx,ty,cache).then(()=>{done++;onProgress(`標高データを読み込み中 ${done}/${tiles.length}`)})}))}
+  const tilesData=new Map();for(const [k,pr] of cache)tilesData.set(k,await pr);
+  const elev=(gx,gy)=>{const t=tilesData.get(Math.floor(gx/256)+'/'+Math.floor(gy/256));if(!t)return NaN;return t[(gy&255)*256+(gx&255)]};
+  const out={};
+  for(let n=0;n<targets.length;n++){
+    const t=targets[n];const cell=40075016.686*Math.cos(t.lat*Math.PI/180)/W; // 1ピクセルの地上の長さ（m）
+    let sum=0,cnt=0;
+    const slopeAt=(x,y)=>{const a=elev(x-1,y-1),b=elev(x,y-1),c=elev(x+1,y-1),d=elev(x-1,y),f=elev(x+1,y),g=elev(x-1,y+1),hh=elev(x,y+1),i=elev(x+1,y+1);
+      const dx=((c+2*f+i)-(a+2*d+g))/(8*cell),dy=((g+2*hh+i)-(a+2*b+c))/(8*cell);const s=Math.atan(Math.hypot(dx,dy))*180/Math.PI;return s};
+    for(let y=Math.floor(t.y0);y<=Math.ceil(t.y1);y++)for(let x=Math.floor(t.x0);x<=Math.ceil(t.x1);x++){
+      const cx=x+.5,cy=y+.5;
+      if(!t.pp.some(poly=>inRing(cx,cy,poly[0])&&!poly.slice(1).some(h=>inRing(cx,cy,h))))continue;
+      const s=slopeAt(x,y);if(isFinite(s)){sum+=s;cnt++}}
+    if(!cnt){const s=slopeAt(Math.floor((t.x0+t.x1)/2),Math.floor((t.y0+t.y1)/2));if(isFinite(s)){sum=s;cnt=1}} // 小さな地番は中心の1点で
+    if(cnt)out[t.k]=Math.round(sum/cnt*10)/10;
+    if(n%300===0){onProgress(`傾斜を計算中 ${n.toLocaleString()}/${targets.length.toLocaleString()} 地番`);await new Promise(r=>setTimeout(r))}
+  }
+  return out;
+}
+async function runSlope(){
+  if(slopeBusy)return;if(!rowsAll.length){toast('先に森林簿CSVを読み込んでください');return}
+  slopeBusy=true;showSummary();
+  try{const res=await computeSlopes(t=>{const m=document.getElementById('slope-prog');if(m)m.textContent=t});
+    slopes=res;try{await idb.set('slopes',{v:DEM_VER,at:new Date().toISOString(),data:res})}catch(_){}
+    toast(`${Object.keys(res).length.toLocaleString()} 地番の傾斜を計算しました`)}
+  catch(err){toast(err.message||'傾斜を計算できませんでした')}
+  slopeBusy=false;restyle();showSummary();
 }
 
 // ===== 地図 =====
@@ -291,13 +364,13 @@ function parcelInfo(p){
 }
 const isPhoto=()=>map.hasLayer(photo);
 // 絞り込み：表示しないゾーン（区分）を覚えておく
-let hide={zone:new Set(),plan:new Set()};
-try{const o=JSON.parse(localStorage.getItem('zoning:hide')||'{}');hide.zone=new Set(o.zone||[]);hide.plan=new Set(o.plan||[])}catch(e){}
-function saveHide(){try{localStorage.setItem('zoning:hide',JSON.stringify({zone:[...hide.zone],plan:[...hide.plan]}))}catch(e){}}
+let hide={zone:new Set(),plan:new Set(),slope:new Set()};
+try{const o=JSON.parse(localStorage.getItem('zoning:hide')||'{}');hide.zone=new Set(o.zone||[]);hide.plan=new Set(o.plan||[]);hide.slope=new Set(o.slope||[])}catch(e){}
+function saveHide(){try{localStorage.setItem('zoning:hide',JSON.stringify({zone:[...hide.zone],plan:[...hide.plan],slope:[...hide.slope]}))}catch(e){}}
 function styleFor(f){
   const info=parcelInfo(f.properties),sel=selected&&selected.feature===f;
   let col=null;
-  if(info){if(view==='zone'){if(!hide.zone.has(info.zone))col=ZMAP[info.zone].c}else if(info.plan&&!hide.plan.has(info.plan.m))col=info.plan.c}
+  if(info){if(view==='zone'){if(!hide.zone.has(info.zone))col=ZMAP[info.zone].c}else if(view==='slope'){const s=slopes[pslKey(f.properties)];const c=s!=null?slopeClass(s):null;if(c&&!hide.slope.has(c.k))col=c.c}else if(info.plan&&!hide.plan.has(info.plan.m))col=info.plan.c}
   const line=sel?'#facc15':(isPhoto()?'#fde68a':'#6b4f3a');
   if(!col)return{color:line,weight:sel?3:.5,opacity:col||sel?1:.35,fillOpacity:sel?.2:0,fillColor:'#facc15'};
   return{color:line,weight:sel?3:.5,opacity:sel?1:.5,fillColor:col,fillOpacity:sel?.85:.62};
@@ -371,9 +444,10 @@ function refresh(){const z=map.getZoom(),vb=map.getBounds();
 fetch('../app/data/index.json').then(r=>r.json()).then(list=>{districts=list.filter(d=>d.oaza!=='その他');
   map.fitBounds(districts.reduce((b,d)=>b.extend(bb(d.bbox)),L.latLngBounds([])));map.on('moveend',refresh);refresh()})
   .catch(()=>toast('地番データを読み込めませんでした。通信状態を確認してください'));
-function setView(v){view=v;if(kkLayer)kkLayer.setStyle(kkStyle);document.getElementById('v-zone').setAttribute('aria-pressed',v==='zone');document.getElementById('v-plan').setAttribute('aria-pressed',v==='plan');
+function setView(v){view=v;if(kkLayer)kkLayer.setStyle(kkStyle);['zone','plan','slope'].forEach(k=>document.getElementById('v-'+k).setAttribute('aria-pressed',v===k));
   restyle();if(!selected)showSummary()}
 document.getElementById('v-zone').onclick=()=>setView('zone');
+document.getElementById('v-slope').onclick=()=>setView('slope');
 document.getElementById('v-plan').onclick=()=>setView('plan');
 
 // ===== 集計（小班の面積で計算。地図と結び付かない小班も含む） =====
@@ -401,7 +475,7 @@ function filterRow(kind,key,color,name,cells,list){
 function filterNote(kind,names){
   const shown=names.filter(([k])=>!hide[kind].has(k));
   const p=el('p','fnote');
-  if(shown.length===names.length){p.textContent='行をタップすると、そのゾーンを地図から外せます。「だけ」でそのゾーンだけを表示します。';return p}
+  if(shown.length===names.length){p.textContent='行をタップすると、その項目を地図から外せます。「だけ」でその項目だけを表示します。';return p}
   p.append(`地図に表示中：${shown.length?shown.map(([,n])=>n).join('・'):'なし'}　`);
   const all=el('button','allbtn','すべて表示');all.type='button';all.onclick=()=>{hide[kind]=new Set();saveHide();restyle();showSummary()};p.append(all);return p;
 }
@@ -413,6 +487,21 @@ function showSummary(){
     const a=el('a',null,'県のダウンロードページ');a.href='https://www.pref.kagoshima.jp/ad12/shinrin-open.html';a.target='_blank';a.rel='noopener';
     const p=el('p','note');p.append(a);panel.append(d,p);return}
   const top=el('div','ptop');
+  if(view==='slope'){
+    top.append(el('h2',null,'傾斜（地番ごとの平均）'),el('span','sub','国土地理院 標高データ（10mメッシュ）から計算'));panel.append(top);
+    if(slopeBusy){panel.append(el('p','note','傾斜を計算しています。しばらくお待ちください（初回は数分かかることがあります）。'),el('p','fnote',''));panel.lastChild.id='slope-prog';return}
+    if(!slopeReady()){
+      panel.append(el('p','note','森林簿と結び付く地番について、国土地理院の標高データから平均傾斜を計算します。初回は標高データの読み込み（数MB）と計算に数分かかります。結果はこの端末に保存されるので、次からはすぐに表示されます。'));
+      const b=el('button','pbtn','傾斜を計算する');b.type='button';b.onclick=runSlope;panel.append(b);return}
+    const by={};let tot=0,none=0;rowsAll.forEach(r=>{const s=slopeOf(r);tot+=r.a;if(s==null){none+=r.a;return}const c=slopeClass(s).k;by[c]=(by[c]||0)+r.a});
+    panel.append(filterNote('slope',SLOPE_CLS.map(c=>[c.k,c.n])));
+    const tb=el('table','sum');
+    SLOPE_CLS.forEach(c=>{const a=by[c.k]||0;tb.append(filterRow('slope',c.k,c.c,c.n,[el('td','n',fmtHa(a)),el('td','n',(a/tot*100).toFixed(1)+'%')],SLOPE_CLS.map(x=>x.k)))});
+    if(none){const tr=el('tr');tr.append(el('td',null,'傾斜なし（地番と結び付かない小班）'),el('td','n',fmtHa(none)),el('td','n',(none/tot*100).toFixed(1)+'%'),el('td'));tb.append(tr)}
+    panel.append(tb,el('p','note','森林簿の面積（ha）を、その小班の地番の平均傾斜で分けて集計しています。「条件」で、急な森林を木材生産林から外す判定に使えます。'));
+    const rb=el('button','pbtn ghost','傾斜を計算し直す');rb.type='button';rb.style.marginTop='8px';rb.onclick=runSlope;panel.append(rb);
+    panel.append(el('p','credit','標高：国土地理院 地理院タイル（標高タイル）を加工して作成'));
+    panel.append(el('p','credit','この成果品は、鹿児島県森林資源情報データ（ダウンロード）から作成したものである'));return}
   if(view==='zone'){
     const {res,total,manual}=summarize();
     top.append(el("h2",null,"ゾーン別の面積（試案）"),el('span','sub',`森林簿の面積（ha）・${towns().join('・')}`));panel.append(top);
@@ -468,6 +557,7 @@ function openParcel(l){
     const zc=el('td');const s=el('span','sw');s.style.background=ZMAP[zz].c;zc.append(s,ZMAP[zz].n);zc.append(el('div','note',why));
     tr.append(el('td',null,r.k),el('td',null,[r.lt,r.sp].filter(Boolean).join('・')),el('td','n',r.kyu!=null?String(r.kyu):'—'),el('td','n',r.a.toFixed(2)),zc);tb.append(tr)});
   tw.append(tb);panel.append(tw);
+  const sl=slopes[pslKey(p)];if(sl!=null)panel.append(el('p','note',`平均傾斜：${sl.toFixed(1)}度（${slopeClass(sl).n}）・国土地理院の標高データから計算`));
   const f=info.recs[0].fn;panel.append(el('p','note',`機能区分（1件目の小班）：木材生産「${f.mokuzai||'—'}」・水源かん養「${f.suigen||'—'}」・山地災害防止「${f.sanchi||'—'}」`));
 }
 
@@ -480,6 +570,7 @@ function ruleText(){
   if(opts.plan)L.push(['hozen','現行計画が水源涵養・山地災害防止']);
   if(opts.sanchi)L.push(['hozen','山地災害防止が「高」の人工林']);
   if(opts.suigen)L.push(['hozen','水源かん養が「高」の人工林']);
+  if(opts.slope)L.push(['hozen',`平均傾斜${opts.slopev}度以上の人工林・伐採跡地`]);
   L.push(['mokuzai',`木材生産が「高」の人工林${opts.kyu?`（${opts.kyuv}齢級以上）`:''}・伐採跡地`]);
   L.push(['hozen','上のどれにも当たらない人工林・伐採跡地など']);
   return L;
@@ -487,10 +578,12 @@ function ruleText(){
 function fillCond(){
   const box=document.getElementById('rules');box.replaceChildren();
   ruleText().forEach(([z,t],i)=>{const d=el('div','rule');const s=el('span','sw');s.style.background=ZMAP[z].c;const zn=el('span','z',ZMAP[z].n);d.append(`${i+1}. ${t} → `,s,zn);box.append(d)});
-  ['hoan','plan','sanchi','suigen','kyu'].forEach(k=>document.getElementById('o-'+k).checked=!!opts[k]);
+  ['hoan','plan','sanchi','suigen','kyu','slope'].forEach(k=>document.getElementById('o-'+k).checked=!!opts[k]);
+  const ss=document.getElementById('o-slopev');if(!ss.options.length){[20,25,30,35,40].forEach(v=>{const o=el('option',null,`${v}度`);o.value=v;ss.append(o)})}ss.value=opts.slopev;
+  document.getElementById('o-slope-note').textContent=slopeReady()?`計算済みの平均傾斜（${Object.keys(slopes).length.toLocaleString()}地番）を使います。急な森林ほど、木材の搬出に手間と費用がかかります`:'国土地理院の標高データから計算した、地番ごとの平均傾斜を使います。先に「傾斜」表示で傾斜を計算してください';
   const sv=document.getElementById('o-kyuv');if(!sv.options.length){for(let i=6;i<=14;i++){const o=el('option',null,`${i}齢級（${i*5-4}年生）`);o.value=i;sv.append(o)}}sv.value=opts.kyuv;
 }
-function readCond(){['hoan','plan','sanchi','suigen','kyu'].forEach(k=>opts[k]=document.getElementById('o-'+k).checked);opts.kyuv=Number(document.getElementById('o-kyuv').value)}
+function readCond(){['hoan','plan','sanchi','suigen','kyu','slope'].forEach(k=>opts[k]=document.getElementById('o-'+k).checked);opts.slopev=Number(document.getElementById('o-slopev').value)||35;opts.kyuv=Number(document.getElementById('o-kyuv').value)}
 document.getElementById('cond-open').onclick=()=>{fillCond();condEl.hidden=false};
 document.getElementById('cond-close').onclick=()=>condEl.hidden=true;
 condEl.addEventListener('click',e=>{if(e.target===condEl)condEl.hidden=true});
@@ -501,11 +594,11 @@ document.getElementById('cond-reset').onclick=()=>{opts=Object.assign({},DEF);fi
 // ===== CSV書き出し（小班ごとの判定結果） =====
 document.getElementById('export').onclick=()=>{
   const ovr=ovrMap();
-  const head=['大字','地番','林小班','字名','林種','樹種','林齢','齢級','面積ha','保安林','現行計画区分','自動判定','判定理由','手直し','ゾーン'];
+  const head=['大字','地番','林小班','字名','林種','樹種','林齢','齢級','面積ha','平均傾斜(度)','保安林','現行計画区分','自動判定','判定理由','手直し','ゾーン'];
   const q=v=>{v=v==null?'':String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
   const lines=[head.join(',')];
   rowsAll.forEach(r=>{const [z,why]=zoneOf(r);const m=ovr[r.o+'|'+r.cb];const mm=ZMAP[m]?m:'';
-    lines.push([r.o,r.cb,r.k,r.az,r.lt,r.sp,r.age,r.kyu,r.a,r.ho,r.plan,ZMAP[z].n,why,mm?ZMAP[mm].n:'',ZMAP[mm||z].n].map(q).join(','))});
+    lines.push([r.o,r.cb,r.k,r.az,r.lt,r.sp,r.age,r.kyu,r.a,slopeOf(r),r.ho,r.plan,ZMAP[z].n,why,mm?ZMAP[mm].n:'',ZMAP[mm||z].n].map(q).join(','))});
   lines.push('');lines.push(q('この成果品は、鹿児島県森林資源情報データ（ダウンロード）から作成したものである'));
   const blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv'});const a=document.createElement('a');
   const d=new Date();a.download=`zoning-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}.csv`;
@@ -513,6 +606,7 @@ document.getElementById('export').onclick=()=>{
   toast(`${a.download} を保存しました（Excelで開けます）`)};
 
 kkApply();
+idb.get('slopes').then(s=>{if(s&&s.v===DEM_VER&&s.data){slopes=s.data;restyle();if(!selected)showSummary()}}).catch(()=>{});
 idb.get('rows').then(r=>{if(r&&r.length){rowsAll=r}onForestLoaded()}).catch(()=>onForestLoaded());
 </script>
 <script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))}</script>
