@@ -38,6 +38,7 @@ header h1{font-size:16px;margin:0;font-weight:700;flex:1;min-width:0;white-space
 .seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg)}
 #search{display:flex;gap:6px;padding:8px max(14px,env(safe-area-inset-right,0px)) 8px max(14px,env(safe-area-inset-left,0px));background:var(--panel);border-bottom:1px solid var(--line);z-index:1000}
 #search input{flex:1;min-width:0;font:inherit;font-family:var(--f-data);padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+#search select{font:inherit;font-size:14px;padding:6px 4px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);max-width:7.5em;flex:none}
 #search button{font:inherit;padding:8px 12px;border-radius:8px;border:0;background:var(--accent);color:var(--accent-fg);cursor:pointer}
 #zhint,.zhint{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:950;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:12.5px;box-shadow:0 2px 8px rgba(0,0,0,.18);pointer-events:none;max-width:calc(100% - 120px);text-align:center;line-height:1.4}
 #maparea{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
@@ -345,10 +346,11 @@ body.trk-on .leaflet-top.leaflet-left{top:98px}
         <div class="sv-prog" id="svf-prog" role="status" hidden><div class="bar"><i></i></div><span></span></div>
       </div>
     </div>
-    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-31p</span></p>
+    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-31q</span></p>
   </div>
 </div>
 <form id="search" autocomplete="off">
+  <select id="muni" aria-label="市町村" hidden></select>
   <input id="q" type="search" placeholder="地番で探す（例：1234-5）" aria-label="地番で探す">
   <button type="submit">検索</button>
 </form>
@@ -489,7 +491,7 @@ body.trk-on .leaflet-top.leaflet-left{top:98px}
 const CFG=Object.assign({id:'kinko',title:'錦江町森林管理システム',ns:'',idb:'kinko-forest',recApp:'kinko-forest',filePrefix:'kinko-kiroku',
   center:[31.215,130.79],oazaAlias:{'麓':'田代麓','川原':'田代川原'},town:{'田代麓':'田代町','田代川原':'田代町','神川':'大根占町','馬場':'大根占町','城元':'大根占町'},
   townList:['田代町','大根占町'],csvHint:'錦江町分の森林簿CSV（田代町・大根占町の2ファイル）',kkOffice:'大隅森林管理署'},window.CFG||{});
-document.title=CFG.title;document.querySelector('header h1').textContent=CFG.title;
+document.title=CFG.title;document.querySelector('header h1').textContent=CFG.h1||CFG.title;
 // 端末への保存は町ごとに分ける（錦江町は今までどおりの名前、ほかの町は「町名/」を頭に付ける）
 const LS={_k:null,
   getItem(k){return localStorage.getItem(CFG.ns+k)},setItem(k,v){localStorage.setItem(CFG.ns+k,v);this._k=null},removeItem(k){localStorage.removeItem(CFG.ns+k);this._k=null},
@@ -611,7 +613,12 @@ function updateRatio(){
 const pick=(p,keys)=>{for(const k of keys){if(p[k]!=null&&p[k]!=='')return String(p[k])}return''};
 const chibanOf=p=>pick(p,['地番','chiban','CHIBAN']);
 const oazaOf=p=>[pick(p,['大字名','oaza','OAZA']),pick(p,['丁目名','chome']),pick(p,['小字名','koaza'])].filter(Boolean).join(' ');
-const keyOf=p=>p.__kk?'kk|'+(p.n||''):[pick(p,['筆ID','fude_id','id']),oazaOf(p),chibanOf(p)].join('|');
+// ---- 複数の市町村をまとめた版（かごしま版）。町ごとの版では CFG.munis が無く、今までどおり動く ----
+const MULTI=!!CFG.munis,MUNI=CFG.munis||{},MUNI_BY_NAME={};Object.entries(MUNI).forEach(([c,m])=>MUNI_BY_NAME[m.name]=c);
+const muniName=p=>MULTI&&p.__m?((MUNI[p.__m]||{}).name||''):'';
+const placeOf=p=>[muniName(p),oazaOf(p)].filter(Boolean).join(' ');
+const fkey=p=>(MULTI?(p.__m||'')+'|':'')+pick(p,['大字名']); // 森林簿を引くときの大字（まとめた版は市町村コード付き）
+const keyOf=p=>p.__kk?'kk|'+(p.n||''):(MULTI&&p.__m?p.__m+'|':'')+[pick(p,['筆ID','fude_id','id']),oazaOf(p),chibanOf(p)].join('|');
 // 選んだ区画が国有林か民有林（地番）かで、色の付け方と戻し方を分ける
 const isKK=l=>!!(l&&l.feature&&l.feature.properties&&l.feature.properties.__kk);
 const styleOf=l=>isKK(l)?kkStyle(l.feature):styleFor(l.feature);
@@ -647,7 +654,7 @@ function parseCSV(t){
 }
 const OAZA_ALIAS=CFG.oazaAlias;
 function buildForest(texts){
-  const out={};let n=0;
+  const out={};let n=0,skip=0;const other=new Set();
   const num=s=>{s=String(s||'').trim();return /^\d+(\.\d+)?$/.test(s)?Number(s):null};
   for(const t of texts){
     const rows=parseCSV(t);if(!rows.length)continue;
@@ -655,7 +662,11 @@ function buildForest(texts){
     if(ix['地番']==null||ix['大字CD']==null)throw new Error('森林簿のCSVではないようです（「地番」「大字CD」の列がありません）');
     const g=(r,k)=>ix[k]==null?'':String(r[ix[k]]||'').trim();
     for(const r of rows.slice(1)){
-      const o=OAZA_ALIAS[g(r,'大字CD')]||g(r,'大字CD');const cb=nz(g(r,'地番'));if(!o||!cb)continue;
+      let o;
+      if(MULTI){const mn=g(r,'新市町村CD'),mc=MUNI_BY_NAME[mn];if(!mc){skip++;if(mn)other.add(mn);continue} // この地図に入っていない市町村は飛ばす
+        const oz=(MUNI[mc].oazaAlias||{})[g(r,'大字CD')]||g(r,'大字CD');o=oz?mc+'|'+oz:''}
+      else o=OAZA_ALIAS[g(r,'大字CD')]||g(r,'大字CD');
+      const cb=nz(g(r,'地番'));if(!o||!cb)continue;
       const sp=[];['1','2','3'].forEach(i=>{if(g(r,'樹種CD'+i)||g(r,'林種CD'+i))sp.push([g(r,'林種CD'+i),g(r,'樹種CD'+i),num(g(r,'林齢'+i)),num(g(r,'齢級'+i)),num(g(r,'混交歩合'+i))])});
       const strip=s=>s.replace(/^0+(?=\d)/,'');
       const rec={k:[strip(g(r,'林班')),nz(g(r,'準林班')),strip(g(r,'小班'))].filter(Boolean).join('-')+(g(r,'枝番')?'-'+g(r,'枝番'):''),
@@ -667,18 +678,21 @@ function buildForest(texts){
       for(const c of cb.split(/\s+/).filter(Boolean))((out[o]||(out[o]={}))[c]||(out[o][c]=[])).push(rec);n++;
     }
   }
-  return {data:out,rows:n};
+  return {data:out,rows:n,skip,other:[...other]};
 }
 const idb={open(){return new Promise((ok,ng)=>{try{const r=indexedDB.open(CFG.idb,1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>ok(r.result);r.onerror=()=>ng(r.error)}catch(e){ng(e)}})},
   async get(k){const d=await this.open();return new Promise((ok,ng)=>{const q=d.transaction('kv').objectStore('kv').get(k);q.onsuccess=()=>ok(q.result);q.onerror=()=>ng(q.error)})},
   async set(k,v){const d=await this.open();return new Promise((ok,ng)=>{const tx=d.transaction('kv','readwrite');tx.objectStore('kv').put(v,k);tx.oncomplete=()=>ok();tx.onerror=()=>ng(tx.error)})}};
 const TOWN=CFG.town;
+// 森林簿の大字 → 合併前の町（まとめた版は「錦江町（田代町）」の形）
+const townOf=k=>{if(!MULTI)return TOWN[k]||k;const i=k.indexOf('|'),m=MUNI[k.slice(0,i)]||{},oz=k.slice(i+1),t=(m.town||{})[oz];return t?`${m.name}（${t}）`:(m.name||oz)};
 // 小班の件数（複数の地番に結び付けた小班は1件と数える）
 const countRows=d=>{const s=new Set();Object.values(d).forEach(o=>Object.values(o).forEach(a=>a.forEach(r=>s.add(r))));return s.size};
 function setForest(obj){
   forest=obj&&obj.data||{};const rows=countRows(forest);forestLoaded=rows>0;
-  const towns=[...new Set(Object.keys(forest).map(o=>TOWN[o]||o))];
-  const missing=CFG.townList.filter(t=>!towns.includes(t));
+  const towns=[...new Set(Object.keys(forest).map(townOf))];
+  const missing=MULTI?[...new Set(Object.keys(forest).map(k=>k.split('|')[0]))].flatMap(mc=>(MUNI[mc].townList||[]).map(t=>`${MUNI[mc].name}（${t}）`)).filter(t=>!towns.includes(t))
+    :CFG.townList.filter(t=>!towns.includes(t));
   const b=document.getElementById('fload');
   b.textContent=!forestLoaded?'森林簿CSVを読み込む':`森林簿 ${rows.toLocaleString()}件 ＋追加`;
   b.title=forestLoaded?`読込済み：${towns.join('・')}`:'';
@@ -686,7 +700,7 @@ function setForest(obj){
   const note=document.getElementById('fmiss');
   note.hidden=!(forestLoaded&&missing.length);note.textContent=missing.length?`${missing.join('・')}の森林簿が未読込です`:'';
   // 両方の町を読み込んだら上の段のボタンは隠す（読み込み直しは森林簿タブの下から）
-  b.parentElement.hidden=forestLoaded&&!missing.length;
+  b.parentElement.hidden=!MULTI&&forestLoaded&&!missing.length; // まとめた版はほかの市町村を足せるよう、いつも出す
   if(parcels)parcels.setStyle(styleFor);
   if(tint!=='none'&&tint!=='rireki')drawLegend();
   if(selected)openSheet(selected);
@@ -699,10 +713,10 @@ async function onForestFiles(e){
     const texts=await Promise.all(files.map(async f=>{const buf=await f.arrayBuffer();
       let t=new TextDecoder('utf-8',{fatal:false}).decode(buf);if(!t.includes('地番'))t=new TextDecoder('shift_jis').decode(buf);return t}));
     const add=buildForest(texts);
-    if(!add.rows)throw new Error('読み込める行がありませんでした');
+    if(!add.rows)throw new Error(add.other&&add.other.length?`${add.other.join('・')}は、この地図にまだ入っていない市町村です`:'読み込める行がありませんでした');
     // 読み込み済みの森林簿に追加する（同じ大字は新しいCSVで置き換える）
     const data=Object.assign({},forest,add.data);
-    const towns=[...new Set(Object.keys(add.data).map(o=>TOWN[o]||o))].join('・');
+    const towns=[...new Set(Object.keys(add.data).map(townOf))].join('・')+(add.other&&add.other.length?`（${add.other.join('・')}は地図に入っていないので除きました）`:'');
     const obj={data,rows:countRows(data),at:new Date().toISOString()};
     setForest(obj);
     try{await idb.set('forest',obj);toast(`${towns}の森林簿 ${add.rows.toLocaleString()} 件を読み込みました（この端末に保存）`)}
@@ -711,7 +725,7 @@ async function onForestFiles(e){
 }
 idb.get('forest').then(o=>{if(o)setForest(o)}).catch(()=>{});
 const nz=s=>String(s||'').normalize('NFKC').trim();
-const forestOf=p=>{const o=forest[pick(p,['大字名'])];return o?(o[nz(chibanOf(p))]||null):null};
+const forestOf=p=>{const o=forest[fkey(p)];return o?(o[nz(chibanOf(p))]||null):null};
 const mainRec=recs=>recs.reduce((a,b)=>((b.a||0)>(a.a||0)?b:a));
 const SPECIES=[['すぎ','#1f6b3a',s=>s==='すぎ'],['ひのき','#5fa36a',s=>s==='ひのき'],['その他針葉樹','#3a8f8a',s=>s==='まつ'||s==='その他針'],
   ['広葉樹','#c98a2e',s=>s==='その他広'||s==='くぬぎ'||s==='くす'],['竹林','#b7c93a',s=>/チク|ダケ/.test(s)],['伐採跡地・未立木地','#9c8c7a',(s,t)=>/伐採|未立木|困難|開発/.test(t+s)]];
@@ -818,7 +832,7 @@ function renderKK(p){
   if(p.kt)rows.push(['機能類型',p.kt]);
   if(p.kn)rows.push(['国有林名',p.kn]);
   if(p.tan)rows.push(['担当区',p.tan]);
-  rows.push(['管理',CFG.kkOffice]);
+  rows.push(['管理',p.of||CFG.kkOffice]);
   const dl=document.createElement('dl');
   rows.forEach(([k,v])=>{const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=v;dl.append(dt,dd)});
   s.append(dl);box.append(s);
@@ -881,7 +895,7 @@ function openSheet(layer){
   }else{
   document.getElementById('s-chiban').textContent=(chibanOf(p)||'地番不明')+' 番';
   const fr=forestOf(p),az=fr&&[...new Set(fr.map(r=>r.az).filter(Boolean))].join('・');
-  document.getElementById('s-oaza').textContent=[oazaOf(p),az].filter(Boolean).join(' ');
+  document.getElementById('s-oaza').textContent=[placeOf(p),az].filter(Boolean).join(' ');
   const a=areaM2(layer);
   curArea=a;document.getElementById('s-area').innerHTML='約 '+fmtArea(a);
   document.getElementById('chiseki').value=store.get(currentKey,'chiseki');updateRatio();
@@ -1034,11 +1048,13 @@ function zoomHint(){const z=document.getElementById('zhint');z.hidden=map.getZoo
 map.on('zoomend',zoomHint);
 kkApply();
 parcels=L.geoJSON(null,{style:styleFor,onEachFeature:(f,l)=>{l.on('click',()=>openSheet(l));index.push(l);applyLabel(l)}}).addTo(map);
+const dURL=d=>(d.file.startsWith('../')?d.file:'data/'+d.file)+(d.v?'?v='+d.v:'');
+const tagM=(gj,d)=>{if(d.m)gj.features.forEach(f=>f.properties.__m=d.m);return gj};
 function loadDistrict(d){
   if(loading[d.file])return loading[d.file];
   toast(`${d.oaza} の地番を読み込んでいます…`);
-  return loading[d.file]=fetch('data/'+d.file+(d.v?'?v='+d.v:'')).then(r=>{if(!r.ok)throw 0;return r.json()})
-    .then(gj=>{parcels.addData(gj);toast(`${d.oaza}：${d.count.toLocaleString()} 筆を表示`)})
+  return loading[d.file]=fetch(dURL(d)).then(r=>{if(!r.ok)throw 0;return r.json()})
+    .then(gj=>{parcels.addData(tagM(gj,d));toast(`${d.oaza}：${d.count.toLocaleString()} 筆を表示`)})
     .catch(()=>{delete loading[d.file];toast(`${d.oaza} の読み込みに失敗しました。通信状態を確認してください`)});
 }
 function bboxBounds(b){return L.latLngBounds([b[1],b[0]],[b[3],b[2]])}
@@ -1055,17 +1071,34 @@ fetch('data/index.json').then(r=>{if(!r.ok)throw 0;return r.json()}).then(list=>
   map.attributionControl.addAttribution('地番：法務省 登記所備付地図データ（G空間情報センター、AIGID変換）／森林簿：鹿児島県');
   map.on('moveend',refresh);refresh();
   zoomHint();
+  if(MULTI)muniSetup();
 }).catch(()=>{document.getElementById('empty').hidden=false});
 
+// まとめた版：市町村を選ぶと、その市町村へ移動し、地番の検索もその市町村の中で行う
+const muniSel=document.getElementById('muni');
+const muniBounds=mc=>districts.filter(d=>d.m===mc).reduce((b,d)=>b.extend(bboxBounds(d.bbox)),L.latLngBounds([]));
+function muniAt(c){const hit=districts.filter(d=>bboxBounds(d.bbox).contains(c)).map(d=>d.m);if(!hit.length)return null;
+  // 大字の範囲が重なるときは、一番多く当てはまる市町村
+  const n={};hit.forEach(m=>n[m]=(n[m]||0)+1);return Object.keys(n).sort((a,b)=>n[b]-n[a])[0]}
+function muniSetup(){
+  const ms=[...new Set(districts.map(d=>d.m))];
+  ms.forEach(mc=>{const o=document.createElement('option');o.value=mc;o.textContent=(MUNI[mc]||{}).name||mc;muniSel.append(o)});
+  muniSel.hidden=false;const q=document.getElementById('q');q.placeholder='地番で探す';
+  const pickNow=()=>{const m=muniAt(map.getCenter());if(m)muniSel.value=m};
+  pickNow();map.on('moveend',pickNow);
+  muniSel.onchange=()=>{map.fitBounds(muniBounds(muniSel.value));toast(`${muniSel.selectedOptions[0].textContent}へ移動しました（地番の検索はこの市町村の中で行います）`)};
+}
 document.getElementById('search').addEventListener('submit',async e=>{
   e.preventDefault();const q=document.getElementById('q').value.trim().replace(/番(地)?$/,'');
   if(!q)return; if(!districts.length){toast('地番データが入っていません');return}
-  toast('検索しています…');
-  await Promise.all(districts.map(loadDistrict));
+  const scope=MULTI?districts.filter(d=>d.m===muniSel.value):districts;
+  toast(MULTI?`${muniSel.selectedOptions[0]?.textContent||''}の中を検索しています…`:'検索しています…');
+  await Promise.all(scope.map(loadDistrict));
   toastEl.hidden=true;
   const qq=nz(q);
-  const exact=index.filter(l=>nz(chibanOf(l.feature.properties))===qq);
-  const branch=index.filter(l=>nz(chibanOf(l.feature.properties)).startsWith(qq+'-'));
+  const inScope=l=>!MULTI||l.feature.properties.__m===muniSel.value;
+  const exact=index.filter(l=>inScope(l)&&nz(chibanOf(l.feature.properties))===qq);
+  const branch=index.filter(l=>inScope(l)&&nz(chibanOf(l.feature.properties)).startsWith(qq+'-'));
   const hits=exact.concat(branch);
   if(!hits.length){toast(`「${q}」は見つかりませんでした`);return}
   if(hits.length===1){goTo(hits[0]);return}
@@ -1086,7 +1119,7 @@ function showCands(q,exact,branch){
   const x=document.createElement('button');x.type='button';x.className='cx';x.textContent='×';x.setAttribute('aria-label','候補を閉じる');x.onclick=closeCands;head.append(x);
   cands.append(head);
   const byKey=(a,b)=>{const pa=a.feature.properties,pb=b.feature.properties;
-    return oazaOf(pa).localeCompare(oazaOf(pb),'ja')||chibanOf(pa).localeCompare(chibanOf(pb),'ja',{numeric:true})};
+    return placeOf(pa).localeCompare(placeOf(pb),'ja')||chibanOf(pa).localeCompare(chibanOf(pb),'ja',{numeric:true})};
   const group=(title,list)=>{
     if(!list.length)return;
     const t=document.createElement('div');t.className='cgrp';t.textContent=title;cands.append(t);
@@ -1094,7 +1127,7 @@ function showCands(q,exact,branch){
       const p=l.feature.properties,b=document.createElement('button');b.type='button';b.className='citem';
       const az=(forestOf(p)||[]).map(r=>r.az).filter(Boolean)[0]||'';
       const a=document.createElement('span');a.className='cno';a.textContent=chibanOf(p);
-      const o=document.createElement('span');o.className='coz';o.textContent=[oazaOf(p),az].filter(Boolean).join(' ');
+      const o=document.createElement('span');o.className='coz';o.textContent=[placeOf(p),az].filter(Boolean).join(' ');
       const s=document.createElement('span');s.className='csum';
       const ar=areaM2(l);s.textContent=[candSummary(p),ar>=10000?(ar/10000).toFixed(2)+' ha':Math.round(ar).toLocaleString()+' m²'].filter(Boolean).join('・');
       if(bassaiOf(p)){const k=document.createElement('span');k.className='cbas';k.textContent='伐採届';o.append(' ',k)}
@@ -1391,10 +1424,10 @@ function fillParcels(o,hits){
   o.replaceChildren();
   if(!hits.length){o.textContent='ルートが通った地番は見つかりませんでした（地番図のない所など）';return}
   const t=document.createElement('div');t.className='muted';t.textContent=`通った地番 ${hits.filter(h=>!h.kk).length}筆${hits.some(h=>h.kk)?`・国有林 ${hits.filter(h=>h.kk).length}小班`:''}（押すと地番のカードを開きます）`;o.append(t);
-  hits.sort((a,b)=>a.kk-b.kk||(oazaOf(a.l.feature.properties)).localeCompare(oazaOf(b.l.feature.properties),'ja')||chibanOf(a.l.feature.properties).localeCompare(chibanOf(b.l.feature.properties),'ja',{numeric:true}));
+  hits.sort((a,b)=>a.kk-b.kk||placeOf(a.l.feature.properties).localeCompare(placeOf(b.l.feature.properties),'ja')||chibanOf(a.l.feature.properties).localeCompare(chibanOf(b.l.feature.properties),'ja',{numeric:true}));
   hits.forEach(h=>{const p=h.l.feature.properties,b=document.createElement('button');b.type='button';b.className='trk-pl';
     if(h.kk){b.innerHTML='<b></b> <small></small>';b.firstChild.textContent='国有林 '+kkLin(p.n);b.lastChild.textContent=(p.sp&&p.sp[0]&&p.sp[0][0])||''}
-    else{const s=candSummary(p);b.innerHTML='<b></b> <span></span> <small></small>';b.children[0].textContent=chibanOf(p);b.children[1].textContent=oazaOf(p);b.children[2].textContent=s}
+    else{const s=candSummary(p);b.innerHTML='<b></b> <span></span> <small></small>';b.children[0].textContent=chibanOf(p);b.children[1].textContent=placeOf(p);b.children[2].textContent=s}
     b.onclick=()=>{document.getElementById('trkp').hidden=true;if(h.kk&&!kkOn){kkOn=true;try{LS.setItem('ui:kokuyu2','on')}catch(e){}}map.fitBounds(h.l.getBounds(),{maxZoom:18});kkApply();openSheet(h.l)};
     o.append(b)});
 }
@@ -1465,9 +1498,11 @@ document.getElementById('sv-go').onclick=async()=>{
 const tx=(lon,z)=>Math.floor((lon+180)/360*2**z),ty=(lat,z)=>{const s=Math.sin(lat*Math.PI/180);return Math.floor((0.5-Math.log((1+s)/(1-s))/(4*Math.PI))*2**z)};
 async function forestTiles(withPhoto){
   const set=new Set(),add=(z,x,y)=>set.add(z+'/'+x+'/'+y);
-  const all=districts.reduce((b,d)=>[Math.min(b[0],d.bbox[0]),Math.min(b[1],d.bbox[1]),Math.max(b[2],d.bbox[2]),Math.max(b[3],d.bbox[3])],[999,999,-999,-999]);
+  // まとめた版は、森林簿を読み込んだ市町村だけ
+  const ds=MULTI?districts.filter(d=>Object.keys(forest).some(k=>k.startsWith(d.m+'|'))):districts;
+  const all=ds.reduce((b,d)=>[Math.min(b[0],d.bbox[0]),Math.min(b[1],d.bbox[1]),Math.max(b[2],d.bbox[2]),Math.max(b[3],d.bbox[3])],[999,999,-999,-999]);
   for(let z=12;z<=15;z++)for(let x=tx(all[0],z);x<=tx(all[2],z);x++)for(let y=ty(all[3],z);y<=ty(all[1],z);y++)add(z,x,y);
-  const list=await Promise.all(districts.map(d=>fetch('data/'+d.file+(d.v?'?v='+d.v:'')).then(r=>r.json())));
+  const list=await Promise.all(ds.map(d=>fetch(dURL(d)).then(r=>r.json()).then(gj=>tagM(gj,d))));
   list.forEach(gj=>gj.features.forEach(f=>{if(!forestOf(f.properties))return;const g=f.geometry;
     const rings=g.type==='Polygon'?[g.coordinates[0]]:g.type==='MultiPolygon'?g.coordinates.map(q=>q[0]):[];
     rings.forEach(r=>{let x0=180,y0=90,x1=-180,y1=-90;r.forEach(([lo,la])=>{x0=Math.min(x0,lo);x1=Math.max(x1,lo);y0=Math.min(y0,la);y1=Math.max(y1,la)});
@@ -1501,6 +1536,7 @@ function openRec(){rpMsg('');trkSave(true);if(!svBusy)['sv-prog','svf-prog'].for
 document.getElementById('rec-open').onclick=openRec;
 document.getElementById('rec-close').onclick=()=>document.getElementById('recp').hidden=true;
 document.getElementById('recp').addEventListener('click',e=>{if(e.target.id==='recp')e.target.hidden=true});
+if(MULTI&&CFG.importFrom)document.getElementById('rec-file').closest('.rp-step').querySelector('p').append(`町ごとの版（${Object.values(CFG.importFrom).map(c=>(MUNI[c]||{}).name).filter(Boolean).join('・')}）の記録ファイルも、そのまま取り込めます。`);
 const canShareFiles=(()=>{try{return !!(navigator.share&&navigator.canShare&&navigator.canShare({files:[new File(['x'],'t.txt',{type:'text/plain'})]}))}catch(e){return false}})();
 document.getElementById('rec-share').hidden=!canShareFiles;
 document.getElementById('rec-share').onclick=async()=>{const r=await recFile();if(!r.count){rpMsg('送る記録がまだありません');return}
@@ -1519,7 +1555,10 @@ document.getElementById('rec-save').onclick=async()=>{const r=await recFile();if
 document.getElementById('rec-file').addEventListener('change',async e=>{
   const f=e.target.files[0];e.target.value='';if(!f)return;
   try{const o=JSON.parse(await f.text());
-    if(!o||o.app!==CFG.recApp||!o.items)throw new Error('このアプリの記録ファイルではないようです');
+    const fromTown=MULTI&&o&&(CFG.importFrom||{})[o.app];
+    if(!o||!(o.app===CFG.recApp||fromTown)||!o.items)throw new Error('このアプリの記録ファイルではないようです');
+    if(fromTown)o.items=Object.fromEntries(Object.entries(o.items).map(([k,v])=>{const i=k.indexOf(':'),ns=k.slice(0,i),rest=k.slice(i+1);
+      return [REC_NS.includes(ns)&&!rest.startsWith('kk|')?`${ns}:${fromTown}|${rest}`:k,v]}));
     let add=0,upd=0;const cur=collectRecords();
     let rAdd=0,rUpd=0;
     for(const [k,v] of Object.entries(o.items)){
