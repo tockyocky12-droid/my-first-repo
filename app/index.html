@@ -97,6 +97,10 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
 #legend .lgr.off i{opacity:.35}
 #legend .lgo{font:inherit;font-size:10px;padding:1px 6px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer}
 #legend .lgall{font:inherit;font-size:10px;padding:1px 7px;border-radius:999px;border:1px solid var(--accent);background:transparent;color:var(--accent);cursor:pointer;font-weight:400}
+#legend .lga{margin-left:auto;font-size:11px;font-variant-numeric:tabular-nums;color:var(--fg);white-space:nowrap}
+#legend .lga small{color:var(--muted);font-size:10px}
+#legend .lgr.off .lga{color:var(--muted)}
+#legend .lgtot{display:block;font-size:10.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:4px;margin-top:2px;line-height:1.4;max-width:15.5em}
 #legend i{width:14px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,.25);flex:none}
 .fr{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}
 .fr h3{font-size:15px;margin:0;font-family:var(--f-data);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -260,7 +264,7 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
       <p class="sv-est" id="sv-est"></p>
       <div class="rp-btns"><button id="sv-go" class="pbtn" type="button">この範囲の地図を保存</button><button id="sv-clear" class="pbtn ghost2" type="button">保存した地図を消す</button></div>
     </div>
-    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-29l</span></p>
+    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-30m</span></p>
   </div>
 </div>
 <form id="search" autocomplete="off">
@@ -552,6 +556,7 @@ function setForest(obj){
   // 両方の町を読み込んだら上の段のボタンは隠す（読み込み直しは森林簿タブの下から）
   b.parentElement.hidden=forestLoaded&&!missing.length;
   if(parcels)parcels.setStyle(styleFor);
+  if(tint!=='none'&&tint!=='rireki')drawLegend();
   if(selected)openSheet(selected);
 }
 document.getElementById('ffile').addEventListener('change',onForestFiles);
@@ -622,10 +627,32 @@ function setTint(t){
 function legendItems(){return tint==='species'?SPECIES.map(x=>[x[0],x[1]]).concat([['その他','#8b7fb8']]):tint==='age'?AGES.map(x=>[x[0],x[1]]):tint==='rireki'?WORKS.map(x=>[x[0],x[1]]):tint==='own'?OWNS.map(x=>[x[0],x[1]]).concat(kkOn?[['国有林',OWN_KK]]:[]):[]}
 function setHide(list){hideT[tint]=list;try{LS.setItem('ui:tinthide',JSON.stringify(hideT))}catch(e){}
   drawLegend();parcels.setStyle(styleFor);if(kkLayer)kkLayer.setStyle(kkStyle);if(selected)selected.setStyle(styleOf(selected))}
+// 凡例に出す面積：森林簿の小班ごとの面積（国有林を表示中は国有林の小班も）を、色分けの項目ごとに合計する
+function recColor(r){
+  if(tint==='own'){const m=OWNS.find(x=>x[2](r.own||''));return m?m[1]:null}
+  const sp=(r.sp||[])[0];if(!sp)return null;
+  if(tint==='species'){const m=SPECIES.find(x=>x[2](sp[1]||'',sp[0]||''));return m?m[1]:'#8b7fb8'}
+  if(tint==='age'){if(!sp[3]||(sp[0]!=='人工林'&&sp[0]!=='天然林'))return null;return AGES.find(x=>x[2](sp[3]))[1]}
+  return null;
+}
+function legendAreas(){
+  const m=new Map(),add=(c,a)=>{if(c)m.set(c,(m.get(c)||0)+(a||0))};
+  if(tint==='rireki'){ // 施業は地番の数
+    for(let i=0;i<LS.length;i++){const k=LS.key(i);if(!k||!k.startsWith('rireki:'))continue;
+      let l=[];try{l=JSON.parse(LS.getItem(k)||'[]')}catch(e){}if(!l.length)continue;
+      const w=rkSort(l)[0].work||'';add(WORKS.find(x=>x[2](w))[1],1)}
+    return {m,unit:'地番'};
+  }
+  const seen=new Set();
+  Object.values(forest).forEach(o=>Object.values(o).forEach(arr=>arr.forEach(r=>{if(seen.has(r))return;seen.add(r);add(recColor(r),r.a)})));
+  if(kkOn&&kkLayer)kkLayer.eachLayer(l=>{const p=l.feature.properties;add(tint==='own'?OWN_KK:kkTint(p),p.ha)});
+  return {m,unit:'ha'};
+}
 function drawLegend(){
   const lg=document.getElementById('legend');lg.replaceChildren();const items=legendItems();lg.hidden=!items.length;if(!items.length)return;
   const hid=hideT[tint]||[];
-  const hd=document.createElement('div');hd.className='lgh';hd.append(tint==='rireki'?'最新の施業':tint==='age'?'林齢':tint==='own'?'所有形態':'樹種');
+  const {m:areas,unit}=legendAreas();const tot=[...areas.values()].reduce((a,b)=>a+b,0);
+  const hd=document.createElement('div');hd.className='lgh';hd.append((tint==='rireki'?'最新の施業':tint==='age'?'林齢':tint==='own'?'所有形態':'樹種')+`（${unit==='ha'?'面積ha':'地番数'}）`);
   if(hid.length){const a=document.createElement('button');a.type='button';a.className='lgall';a.textContent='すべて表示';a.onclick=()=>setHide([]);hd.append(a)}
   lg.append(hd);
   items.forEach(([n,c])=>{const on=!hid.includes(c);
@@ -636,7 +663,12 @@ function drawLegend(){
     b.onclick=()=>setHide(on?hid.concat([c]):hid.filter(x=>x!==c));
     const o=document.createElement('button');o.type='button';o.className='lgo';o.textContent='だけ';o.title=n+'だけを表示';
     o.onclick=()=>{setHide(items.map(x=>x[1]).filter(x=>x!==c));toast(`${n}だけを表示しています`)};
-    row.append(b,o);lg.append(row)});
+    const a=areas.get(c)||0;const v=document.createElement('span');v.className='lga';
+    v.textContent=unit==='ha'?(a?`${a>=10?Math.round(a).toLocaleString():a.toFixed(1)}`:'—'):String(a);
+    if(tot&&a){const pc=document.createElement('small');pc.textContent=` ${(a/tot*100).toFixed(0)}%`;v.append(pc)}
+    row.append(b,v,o);lg.append(row)});
+  if(tot){const t=document.createElement('div');t.className='lgtot';t.append(`合計 ${unit==='ha'?Math.round(tot).toLocaleString()+' ha':tot+' 地番'}`);
+    if(unit==='ha')t.append(document.createElement('br'),kkOn?'（民有林の森林簿＋国有林）':'（民有林の森林簿。国有林は「国有林」ボタンで加わります）');lg.append(t)}
 }
 
 function renderKK(p){
@@ -802,7 +834,7 @@ document.getElementById('rk-form').addEventListener('submit',ev=>{
   const e={id:rkEdit||('r'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)),date:v('date'),work:v('work'),area,jigyo:v('jigyo'),who:v('who'),note:v('note'),upd:new Date().toISOString()};
   const i=list.findIndex(x=>x.id===e.id);if(i>=0)list[i]=e;else list.push(e);
   if(!rkSet(k,list)){toast('保存できませんでした（ブラウザの設定を確認してください）');return}
-  const was=rkEdit;rkClose();renderRireki();updateDots();toast(was?'施業履歴を修正しました':'施業履歴を記録しました');
+  const was=rkEdit;rkClose();renderRireki();updateDots();if(tint==='rireki')drawLegend();toast(was?'施業履歴を修正しました':'施業履歴を記録しました');
 });
 // ---- パソコン表示：右パネルの上端を地図の上端にそろえる ----
 function setTopH(){const m=document.getElementById('maparea');if(m)document.documentElement.style.setProperty('--toph',m.getBoundingClientRect().top+'px')}
@@ -853,7 +885,7 @@ function kkLoad(){
       kkRoads=L.geoJSON(rd,{style:{color:'#b45309',weight:2,opacity:.85},interactive:false});
       kkLayer=L.geoJSON(u,{style:kkStyle,onEachFeature:(f,l)=>{f.properties.__kk=true;l.on('click',()=>openSheet(l));applyLabel(l)}});
       map.attributionControl.addAttribution('国有林：国土数値情報（国有林野データ）（国土交通省）を加工');
-      kkApply();
+      kkApply();if(tint!=='none')drawLegend();
     }).catch(()=>{kkLoading=null;toast('国有林のデータを読み込めませんでした')});
 }
 function kkApply(){
@@ -863,7 +895,7 @@ function kkApply(){
   if(kkOn&&map.getZoom()>=MINZ){if(!map.hasLayer(kkLayer)){kkLayer.addTo(map);kkRoads.addTo(map);kkLayer.bringToBack()}}
   else{if(map.hasLayer(kkLayer)){kkLayer.remove();kkRoads.remove()}}
 }
-document.getElementById('kk').onclick=()=>{kkOn=!kkOn;zoomHint();if(tint==='own')drawLegend();try{LS.setItem('ui:kokuyu2',kkOn?'on':'off')}catch(e){}kkApply();
+document.getElementById('kk').onclick=()=>{kkOn=!kkOn;zoomHint();if(tint!=='none')drawLegend();try{LS.setItem('ui:kokuyu2',kkOn?'on':'off')}catch(e){}kkApply();
   toast(kkOn?(map.getZoom()<MINZ?'地図を拡大すると国有林が表示されます':'国有林を表示しました（水色の点線、茶色の線は林道）'):'国有林を隠しました')};
 map.on('zoomend',kkApply);
 function zoomHint(){const z=document.getElementById('zhint');z.hidden=map.getZoom()>=MINZ;z.textContent=kkOn?'地図を拡大すると、民有林（地番）と国有林の境界が表示されます':'地図を拡大すると、地番の境界が表示されます'}
