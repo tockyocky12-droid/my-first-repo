@@ -118,7 +118,7 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
 #tint .fwrap{margin-left:0}
 .fwrap[hidden],[hidden]{display:none!important}
 .hbtn{border:1px solid var(--line);background:transparent;color:var(--fg);font:inherit;font-size:16px;border-radius:8px;width:36px;height:32px;cursor:pointer;flex:none}
-#recp{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;
+#recp,#trkp,#mkp{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;
   padding:calc(env(safe-area-inset-top,0px) + 56px) max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px));overflow:auto}
 .rp-card{background:var(--panel);color:var(--fg);border-radius:14px;padding:16px;max-width:460px;width:100%;box-shadow:0 10px 30px rgba(0,0,0,.3)}
 .rp-top{display:flex;align-items:center;justify-content:space-between}
@@ -222,6 +222,72 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
 .kkpop .src{font-size:10px;color:#5f6d63;margin-top:6px}
 .lbtn[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
 #tint{flex-wrap:wrap}
+/* 踏査ルート */
+#trk{position:absolute;right:calc(14px + env(safe-area-inset-right,0px));bottom:calc(88px + env(safe-area-inset-bottom,0px));z-index:900;
+  width:52px;height:52px;border-radius:50%;border:0;background:var(--panel);color:#a21caf;box-shadow:0 2px 10px rgba(0,0,0,.25);cursor:pointer;
+  display:grid;place-items:center;align-content:center;gap:0;font:inherit;font-size:11px;font-weight:700;line-height:1;padding:0}
+#trk svg{width:22px;height:22px;margin-bottom:2px}
+#trk.rec{background:#a21caf;color:#fff}
+#trkbar{position:absolute;top:8px;left:8px;right:8px;z-index:960;background:var(--panel);color:var(--fg);border:2px solid #a21caf;border-radius:12px;padding:8px 10px;box-shadow:0 3px 12px rgba(0,0,0,.25);font-family:var(--f-data)}
+body.trk-on #zhint{display:none!important}
+body.trk-on .leaflet-top.leaflet-left{top:98px}
+.tb-row{display:flex;gap:6px 14px;align-items:baseline;flex-wrap:wrap;font-variant-numeric:tabular-nums;font-size:15px}
+.tb-rec{color:#dc2626;font-weight:700;font-size:13px}
+.tb-rec.pz{color:var(--muted)}
+.tb-rec i{display:inline-block;width:9px;height:9px;border-radius:50%;background:currentColor;margin-right:4px;animation:tbb 1.2s infinite}
+.tb-rec.pz i{animation:none}
+@keyframes tbb{50%{opacity:.25}}
+.tb-big{font-size:18px;font-weight:700}
+.tb-acc{font-size:12px;color:var(--muted)}
+.tb-acc.warn{color:#d97706;font-weight:700}
+.tb-btns{display:flex;gap:6px;margin-top:8px}
+.tb-btns button{flex:1;font:inherit;font-family:var(--f-display);font-size:14px;padding:9px 4px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--fg);cursor:pointer;white-space:nowrap}
+.tb-btns .tb-mark{background:#7c3aed;color:#fff;border-color:#7c3aed}
+.tb-btns .tb-end{border-color:#a21caf;color:#a21caf}
+.tb-btns .tb-save{background:var(--accent);color:var(--accent-fg);border:0}
+.tb-btns .tb-discard{color:#dc2626;border-color:#dc2626}
+.tb-endf{margin-top:8px}
+.tb-endf label{margin-bottom:2px}
+.tb-endf input{width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+.trk-start{width:100%;font-size:16px!important;padding:12px!important;background:#a21caf!important;margin-top:12px}
+.trk-start:disabled{opacity:.6}
+.trk-note{font-size:12.5px;color:var(--muted);line-height:1.6;margin:8px 0 0}
+.trk-item{border-top:1px solid var(--line);padding:10px 0}
+.trk-h{display:flex;align-items:center;gap:8px}
+.trk-h input[type=checkbox]{width:20px;height:20px;flex:none;accent-color:#a21caf}
+.trk-h .trk-name{flex:1;min-width:0;font:inherit;font-weight:700;font-size:15px;border:0;border-bottom:1px dashed var(--line);background:transparent;color:var(--fg);padding:3px 0}
+.trk-meta{font-family:var(--f-data);font-size:12.5px;color:var(--muted);margin:4px 0 0 28px;font-variant-numeric:tabular-nums}
+.trk-acts{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 0 28px}
+.trk-acts button{font:inherit;font-size:12.5px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--fg);cursor:pointer}
+.trk-acts button.on{border-color:#a21caf;color:#a21caf}
+.trk-acts button.del{color:#dc2626;border-color:#fca5a5}
+.trk-out{margin:8px 0 0 28px;font-size:13px;line-height:1.6}
+.trk-out .big{font-family:var(--f-data);font-size:20px;font-weight:700}
+.trk-out .warn{color:#d97706}
+.trk-out .muted{color:var(--muted);font-size:12px}
+.trk-pl{display:block;width:100%;text-align:left;font:inherit;font-size:13.5px;background:transparent;border:0;border-bottom:1px solid var(--line);padding:7px 2px;color:var(--fg);cursor:pointer}
+.trk-pl b{font-family:var(--f-data)}
+.trk-pl small{color:var(--muted)}
+.trk-empty{font-size:13px;color:var(--muted);padding:10px 0 0}
+.mk-pos{font-size:12.5px;color:var(--muted);margin:6px 0 8px;font-family:var(--f-data)}
+#mk-text{margin-top:0}
+.mk-quick{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px}
+.mk-quick button{font:inherit;font-size:12.5px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--fg);cursor:pointer}
+.pbtn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+#mk-thumb img{max-width:100%;max-height:180px;border-radius:8px;margin-top:8px;display:block}
+.mk-photo-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.mk-photo-row .plain{font:inherit;font-size:13px;background:transparent;border:0;color:#dc2626;cursor:pointer}
+.mkpin{width:16px!important;height:16px!important;margin:-8px 0 0 -8px!important;border-radius:50%;background:#7c3aed;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45)}
+.mkpin.ph{background:#7c3aed;outline:2px solid #7c3aed}
+.trkstart{width:12px!important;height:12px!important;margin:-6px 0 0 -6px!important;border-radius:50%;background:#16a34a;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.trkme{width:18px!important;height:18px!important;margin:-9px 0 0 -9px!important;border-radius:50%;background:#2563eb;border:3px solid #fff;box-shadow:0 0 0 2px rgba(37,99,235,.35),0 1px 4px rgba(0,0,0,.4)}
+.mkpop{font-family:var(--f-data);font-size:13px;line-height:1.5;max-width:240px}
+.mkpop .t{color:#5f6d63;font-size:11.5px}
+.mkpop .x{white-space:pre-wrap;overflow-wrap:anywhere;margin:2px 0}
+.mkpop img{width:100%;max-height:200px;object-fit:contain;border-radius:6px;margin-top:4px;background:#eee}
+.mkpop .a{display:flex;gap:12px;margin-top:6px}
+.mkpop .a button,.mkpop .a a{font:inherit;font-size:12px;background:transparent;border:0;padding:0;color:#2f6b45;cursor:pointer;text-decoration:underline}
+.mkpop .a button.del{color:#dc2626}
 /* パソコンなど横に広い画面：地番カードを右側の縦長パネルにし、地図を広く見せる */
 @media (min-width:900px){
   body{font-size:15px}
@@ -229,7 +295,8 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
   #search input{max-width:520px}
   #sheet{left:auto;right:0;top:var(--toph,142px);bottom:0;width:420px;max-height:none;border-radius:0;border-top:0;border-left:1px solid var(--line);box-shadow:-4px 0 16px rgba(0,0,0,.12);padding-block:14px 16px;padding-left:18px;padding-right:18px}
   #sheet.min{top:auto;bottom:0;width:420px;border-top:1px solid var(--line);border-radius:14px 0 0 0}
-  body:has(#sheet:not([hidden]):not(.min)) #locate{right:calc(420px + 14px)}
+  body:has(#sheet:not([hidden]):not(.min)) #locate,body:has(#sheet:not([hidden]):not(.min)) #trk{right:calc(420px + 14px)}
+  #trkbar{right:auto;width:480px}
   body:has(#sheet:not([hidden]):not(.min)) .leaflet-control-attribution{margin-right:420px}
   #cands{right:auto;width:440px;max-height:75%;border-right:1px solid var(--line);border-radius:0 0 12px 0}
   #legend{font-size:13px}
@@ -255,12 +322,12 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
     <p class="rp-msg" id="rp-msg" role="status" hidden></p>
     <div class="rp-step">
       <h3>この端末の記録を送る</h3>
-      <p>メモ表示・メモ内部記録・地積・伐採届・施業履歴をファイルに書き出します。メールやLINEなどで、もう一方の端末に送ってください。</p>
+      <p>メモ表示・メモ内部記録・地積・伐採届・施業履歴・踏査ルート（写真も含む）をファイルに書き出します。メールやLINEなどで、もう一方の端末に送ってください。</p>
       <div class="rp-btns"><button id="rec-share" class="pbtn" type="button" hidden>共有して送る</button><button id="rec-save" class="pbtn" type="button">ファイルに保存</button></div>
     </div>
     <div class="rp-step">
       <h3>送られてきた記録を取り込む</h3>
-      <p>受け取った記録ファイル（.txt または .json）を選びます。同じ地番の記録は、ファイルの内容で上書きします。この端末にしかない記録は消えません。</p>
+      <p>受け取った記録ファイル（.txt または .json）を選びます。同じ地番の記録は、ファイルの内容で上書きします。踏査ルートは、無いものだけ追加します（同じルートは新しい方に合わせます）。この端末にしかない記録は消えません。</p>
       <div class="rp-btns"><span class="fwrap pwrap"><span class="pbtn">ファイルを選んで取り込む</span><input id="rec-file" class="fover" type="file" accept=".json,.txt,application/json,text/plain" aria-label="記録ファイルを選ぶ"></span></div>
     </div>
     <div class="rp-step">
@@ -278,7 +345,7 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
         <div class="sv-prog" id="svf-prog" role="status" hidden><div class="bar"><i></i></div><span></span></div>
       </div>
     </div>
-    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-31o</span></p>
+    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-31p</span></p>
   </div>
 </div>
 <form id="search" autocomplete="off">
@@ -299,8 +366,38 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
   <span class="fwrap"><span id="fload" class="fbtn">森林簿CSVを読み込む</span><input id="ffile" class="fover" type="file" accept=".csv,text/csv,text/comma-separated-values,application/csv,application/vnd.ms-excel,text/plain" multiple aria-label="森林簿CSVを選ぶ"></span>
   <span id="fmiss" class="fmiss" hidden></span>
 </div>
-<div id="maparea"><div id="map"></div><div id="zhint" class="zhint" hidden>地図を拡大すると、民有林（地番）と国有林の境界が表示されます</div><div id="cands" hidden role="listbox" aria-label="地番の候補"></div></div>
+<div id="maparea"><div id="map"></div><div id="zhint" class="zhint" hidden>地図を拡大すると、民有林（地番）と国有林の境界が表示されます</div><div id="cands" hidden role="listbox" aria-label="地番の候補"></div>
+<div id="trkbar" hidden>
+  <div class="tb-row"><span class="tb-rec" id="tb-state"><i></i>記録中</span><span class="tb-big" id="tb-time">0:00:00</span><span class="tb-big" id="tb-dist">0 m</span><span class="tb-acc" id="tb-acc">GPSを待っています</span></div>
+  <div class="tb-btns" id="tb-main"><button type="button" class="tb-mark" id="tb-mark">ここをメモ</button><button type="button" id="tb-pause">一時停止</button><button type="button" class="tb-end" id="tb-end">終了</button></div>
+  <div class="tb-endf" id="tb-endf" hidden><label for="tb-name">ルートの名前</label><input id="tb-name" autocomplete="off">
+    <div class="tb-btns"><button type="button" class="tb-save" id="tb-save">保存して終了</button><button type="button" id="tb-back">記録に戻る</button><button type="button" class="tb-discard" id="tb-discard">捨てる</button></div></div>
+</div></div>
 <div id="legend" hidden></div>
+<button id="trk" type="button" aria-label="踏査ルート"><svg viewBox="0 0 24 24" fill="currentColor"><ellipse cx="8" cy="7" rx="2.6" ry="3.6"/><ellipse cx="15.5" cy="12.5" rx="2.6" ry="3.6"/><rect x="6.4" y="11.6" width="3.2" height="2.6" rx="1.3"/><rect x="13.9" y="17.1" width="3.2" height="2.6" rx="1.3"/></svg>踏査</button>
+<div id="trkp" hidden>
+  <div class="rp-card" role="dialog" aria-labelledby="trk-ttl">
+    <div class="rp-top"><h2 id="trk-ttl">踏査ルート</h2><button id="trk-close" class="close" type="button" aria-label="閉じる">×</button></div>
+    <button id="trk-start" class="pbtn trk-start" type="button">踏査を始める</button>
+    <p class="trk-note">歩いた道筋を地図に記録します。GPSは携帯の電波を使わないので、圏外でも記録できます（地図は保存した分が出ます）。<br>記録できるのはこの画面を出している間だけです。画面を消したり、ほかのアプリに切り替えたりすると、その間は記録されません。記録中は画面が自動で消えないようにします（電池の減りが早くなります）。<br>誤差は開けた場所で5〜10m、林内や谷では10〜30mほどです。境界の確定には使えません。</p>
+    <div id="trk-list"></div>
+  </div>
+</div>
+<div id="mkp" hidden>
+  <div class="rp-card" role="dialog" aria-labelledby="mk-ttl">
+    <div class="rp-top"><h2 id="mk-ttl">ここをメモ</h2><button id="mk-close" class="close" type="button" aria-label="閉じる">×</button></div>
+    <p class="mk-pos" id="mk-pos"></p>
+    <textarea id="mk-text" rows="2" placeholder="例：境界杭あり／倒木／作業道崩れ"></textarea>
+    <div class="mk-quick" id="mk-quick"><button type="button">境界杭</button><button type="button">倒木</button><button type="button">崩れ</button><button type="button">獣害</button><button type="button">作業道</button><button type="button">要確認</button></div>
+    <div class="mk-photo-row">
+      <span class="fwrap pwrap"><span class="pbtn ghost">写真を撮る</span><input id="mk-cam" class="fover" type="file" accept="image/*" capture="environment" aria-label="写真を撮る"></span>
+      <span class="fwrap pwrap"><span class="pbtn ghost">写真を選ぶ</span><input id="mk-pick" class="fover" type="file" accept="image/*" aria-label="写真を選ぶ"></span>
+      <button type="button" class="plain" id="mk-nophoto" hidden>写真を外す</button>
+    </div>
+    <div id="mk-thumb"></div>
+    <div class="rp-btns" style="margin-top:12px"><button id="mk-save" class="pbtn" type="button">保存</button><button id="mk-cancel" class="pbtn ghost2" type="button">やめる</button></div>
+  </div>
+</div>
 <button id="locate" aria-label="現在地を表示">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
 </button>
@@ -1027,12 +1124,303 @@ btn.onclick=()=>{
     btn.classList.remove('on');watchId=null},{enableHighAccuracy:true,maximumAge:5000,timeout:20000});
 };
 
-// ---- 記録の受け渡し（メモ・地積・伐採届をファイルで別の端末へ） ----
+// ---- 踏査ルート（歩いた道筋をGPSで記録。端末の中だけに保存） ----
+idb.del=async function(k){const d=await this.open();return new Promise((ok,ng)=>{const tx=d.transaction('kv','readwrite');tx.objectStore('kv').delete(k);tx.oncomplete=()=>ok();tx.onerror=()=>ng(tx.error)})};
+idb.keys=async function(prefix){const d=await this.open();return new Promise((ok,ng)=>{const q=d.transaction('kv').objectStore('kv').getAllKeys();q.onsuccess=()=>ok(q.result.map(String).filter(k=>k.startsWith(prefix)));q.onerror=()=>ng(q.error)})};
+const TRK_COLOR='#c026d3',ACC_MAX=50,GAP_S=120;
+const trkPane=map.createPane('trk');trkPane.style.zIndex=450;trkPane.style.pointerEvents='none';
+const trkRenderer=L.svg({pane:'trk'});
+let routes=[];          // 保存したルート（新しい順）
+let trk=null;           // 記録中のルート
+let trkWatch=null,trkFix=null,trkMe=null,wakeLock=null,trkTick=null,trkUserMoved=0;
+const trkShown={};      // 地図に出しているルートの図形（id→layerGroup）
+let trkLive=null;       // 記録中のルートの図形
+const trkArea={};       // 面積の範囲（id→polygon）
+const gdist=(a,b)=>{const R=6371008,r=Math.PI/180,dl=(b[0]-a[0])*r,dg=(b[1]-a[1])*r,s=Math.sin(dl/2)**2+Math.cos(a[0]*r)*Math.cos(b[0]*r)*Math.sin(dg/2)**2;return 2*R*Math.asin(Math.min(1,Math.sqrt(s)))};
+const fmtDist=m=>m>=1000?(m/1000).toFixed(2)+' km':Math.round(m)+' m';
+const fmtDur=ms=>{const s=Math.floor(ms/1000);return `${Math.floor(s/3600)}:${String(Math.floor(s/60)%60).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`};
+const fmtWhen=iso=>{const d=new Date(iso);return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`};
+const newId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const trkMs=t=>t.ms+(t.runAt?Date.now()-t.runAt:0);
+function ringAreaLL(pts){const R=6378137,rad=Math.PI/180;let a=0;for(let j=0;j<pts.length;j++){const p1=pts[j],p2=pts[(j+1)%pts.length];a+=(p2[1]-p1[1])*rad*(2+Math.sin(p1[0]*rad)+Math.sin(p2[0]*rad))}return Math.abs(a*R*R/2)}
+const allPts=r=>r.segs.flat();
+
+// 地図に描く（線・始点・メモの印）
+function trkDraw(r,live){
+  const g=L.layerGroup();
+  r.segs.forEach(sg=>{if(sg.length>1){const ll=sg.map(q=>[q[0],q[1]]); // 白いふちを付けて、地番の線や写真の上でも見やすく
+    L.polyline(ll,{renderer:trkRenderer,color:'#fff',weight:8,opacity:.9,interactive:false,lineCap:'round',lineJoin:'round'}).addTo(g);
+    L.polyline(ll,{renderer:trkRenderer,color:TRK_COLOR,weight:4.5,opacity:1,interactive:false,lineCap:'round',lineJoin:'round'}).addTo(g)}});
+  const p0=allPts(r)[0];if(p0)L.marker([p0[0],p0[1]],{icon:L.divIcon({className:'trkstart',iconSize:null}),interactive:false,keyboard:false}).addTo(g);
+  r.marks.forEach(m=>{const mk=L.marker([m.lat,m.lng],{icon:L.divIcon({className:'mkpin'+(m.ph?' ph':''),iconSize:null}),title:m.text||'メモ'}).addTo(g);
+    mk.bindPopup(()=>mk._pc||(mk._pc=mkPopup(r,m,live)),{maxWidth:260});mk.on('popupclose',()=>{mk._pc=null;const u=mk._phUrl;if(u){URL.revokeObjectURL(u);mk._phUrl=null}});mk.on('popupopen',()=>mkPhoto(mk,m))});
+  return g;
+}
+function mkPopup(r,m,live){
+  const d=document.createElement('div');d.className='mkpop';
+  const t=document.createElement('div');t.className='t';t.textContent=`${fmtWhen(m.t)}　${r.name||'記録中のルート'}${m.acc?`　±${m.acc}m`:''}`;
+  const x=document.createElement('div');x.className='x';x.textContent=m.text||'（文字なし）';
+  d.append(t,x);
+  if(m.ph){const im=document.createElement('img');im.alt='メモの写真';im.dataset.ph=m.ph;d.append(im)}
+  const a=document.createElement('div');a.className='a';
+  if(m.ph){const s=document.createElement('button');s.type='button';s.textContent='写真を保存';s.onclick=async()=>{const b=await idb.get('trkph:'+m.ph).catch(()=>null);if(!b){toast('写真が見つかりません');return}
+    dl(new File([b],`踏査写真_${ymd(m.t)}_${(m.text||'メモ').slice(0,12).replace(/[\\/:*?"<>|\s]/g,'_')}.jpg`,{type:'image/jpeg'}))};a.append(s)}
+  const del=document.createElement('button');del.type='button';del.className='del';del.textContent='この印を削除';
+  del.onclick=()=>{if(del.dataset.ok){mkDelete(r,m,live);map.closePopup()}else{del.dataset.ok=1;del.textContent='本当に削除する'}};a.append(del);
+  d.append(a);return d;
+}
+async function mkPhoto(mk,m){if(!m.ph)return;const im=mk.getPopup().getElement()?.querySelector('img[data-ph]');if(!im)return;
+  try{const b=await idb.get('trkph:'+m.ph);if(b){mk._phUrl=URL.createObjectURL(b);im.src=mk._phUrl;im.onload=()=>mk.getPopup().update()}}catch(_){}}
+async function mkDelete(r,m,live){
+  r.marks=r.marks.filter(x=>x.id!==m.id);if(m.ph)idb.del('trkph:'+m.ph).catch(()=>{});
+  if(live){trkSave();trkRedrawLive()}else{r.upd=new Date().toISOString();await routeStore(r);showRoute(r,true);renderTrkList()}
+  toast('メモの印を削除しました');
+}
+function showRoute(r,on){
+  if(trkShown[r.id]){trkShown[r.id].remove();delete trkShown[r.id]}
+  if(trkArea[r.id]&&!on){trkArea[r.id].remove();delete trkArea[r.id]}
+  if(on)trkShown[r.id]=trkDraw(r,false).addTo(map);
+}
+function trkRedrawLive(){if(trkLive)trkLive.remove();trkLive=trk?trkDraw(trk,true).addTo(map):null}
+async function routeStore(r){await idb.set('trk:'+r.id,r)}
+
+// 記録
+function trkUI(){
+  const on=!!trk;document.body.classList.toggle('trk-on',on);document.getElementById('trkbar').hidden=!on;
+  document.getElementById('trk').classList.toggle('rec',on);
+  const st=document.getElementById('trk-start');st.disabled=on;st.textContent=on?'記録中です（地図の上の欄で操作）':'踏査を始める';
+  if(!on)return;
+  const pz=!trk.runAt,s=document.getElementById('tb-state');s.className='tb-rec'+(pz?' pz':'');s.lastChild.textContent=pz?'一時停止中':'記録中';
+  document.getElementById('tb-pause').textContent=pz?'再開':'一時停止';
+  document.getElementById('tb-time').textContent=fmtDur(trkMs(trk));
+  document.getElementById('tb-dist').textContent=fmtDist(trk.dist);
+  const a=document.getElementById('tb-acc');
+  if(pz){a.className='tb-acc';a.textContent=`メモ ${trk.marks.length}件`}
+  else if(!trkFix){a.className='tb-acc';a.textContent='GPSを待っています…'}
+  else{const bad=trkFix.acc>ACC_MAX;a.className='tb-acc'+(bad?' warn':'');a.textContent=bad?`精度が悪いので待っています（±${Math.round(trkFix.acc)}m）`:`GPS ±${Math.round(trkFix.acc)}m・メモ ${trk.marks.length}件`}
+}
+let trkSaveT;function trkSave(now){clearTimeout(trkSaveT);const go=()=>{if(trk){trk.savedAt=Date.now();idb.set('trkactive',trk).catch(()=>{})}};now?go():trkSaveT=setTimeout(go,4000)}
+async function wake(on){try{if(on){if(!wakeLock&&'wakeLock' in navigator){wakeLock=await navigator.wakeLock.request('screen');wakeLock.addEventListener('release',()=>{wakeLock=null})}}else if(wakeLock){const w=wakeLock;wakeLock=null;await w.release()}}catch(_){}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&trk&&trk.runAt)wake(true);if(document.visibilityState==='hidden'&&trk)trkSave(true)});
+function gpsOn(){
+  if(trkWatch!==null)return;
+  if(!navigator.geolocation){toast('この端末では現在地が使えません');return}
+  trkWatch=navigator.geolocation.watchPosition(onTrkFix,err=>{
+    if(err.code===1){toast('位置情報の利用が許可されていません。ブラウザの設定で許可してください');trkPause(true)}
+  },{enableHighAccuracy:true,maximumAge:0,timeout:30000});
+}
+function gpsOff(){if(trkWatch!==null){navigator.geolocation.clearWatch(trkWatch);trkWatch=null}}
+function onTrkFix(pos){
+  const c=pos.coords,p=[+c.latitude.toFixed(6),+c.longitude.toFixed(6)],now=Date.now();
+  const firstFix=!trkFix;trkFix={p,acc:c.accuracy,at:now};
+  if(!trkMe)trkMe=L.marker(p,{icon:L.divIcon({className:'trkme',iconSize:null}),interactive:false,keyboard:false,zIndexOffset:1000}).addTo(map);else trkMe.setLatLng(p);
+  if(!trk||!trk.runAt){trkUI();return}
+  if(firstFix&&!allPts(trk).length)map.setView(p,Math.max(map.getZoom(),16));
+  else if(now-trkUserMoved>20000&&!map.getBounds().pad(-0.2).contains(p))map.panTo(p);
+  if(c.accuracy>ACC_MAX){trkUI();return}
+  const t=Math.round((now-Date.parse(trk.start))/1000);
+  let sg=trk.segs[trk.segs.length-1];
+  const prev=trk.lastFixAt,gap=prev&&now-prev>GAP_S*1000;trk.lastFixAt=now;
+  if(!sg||trk.newSeg||gap){if(gap&&sg&&sg.length)toast(`約${Math.max(2,Math.round((now-prev)/60000))}分の間、記録が途切れていました（画面が消えていたなど）。その間は線をつなぎません`);
+    if(!sg||sg.length){sg=[];trk.segs.push(sg)}trk.newSeg=false}
+  const last=sg[sg.length-1];
+  if(last){const d=gdist(last,p),dt=Math.max(1,t-last[2]);
+    if(d<Math.max(3,c.accuracy*0.4)){trkUI();return}   // 立ち止まっているときの揺れは記録しない
+    if(d/dt>40){trkUI();return}                          // 急に飛んだ点は記録しない（林道を車で走る速さは記録する）
+    trk.dist+=d}
+  sg.push([p[0],p[1],t,Math.round(c.accuracy)]);
+  trkRedrawLive();trkUI();trkSave();
+}
+function trkStart(){
+  if(trk)return;
+  if(!navigator.geolocation){toast('この端末では現在地が使えません');return}
+  const now=new Date();
+  trk={id:newId(),start:now.toISOString(),segs:[],marks:[],dist:0,ms:0,runAt:Date.now(),newSeg:true};
+  trkFix=null;gpsOn();wake(true);trkRedrawLive();trkSave(true);
+  clearInterval(trkTick);trkTick=setInterval(trkUI,1000);
+  document.getElementById('trkp').hidden=true;trkUI();toast('踏査の記録を始めました。現在地を探しています…');
+}
+function trkPause(p){
+  if(!trk)return;
+  if(p&&trk.runAt){trk.ms+=Date.now()-trk.runAt;trk.runAt=null;gpsOff();wake(false);trkFix=null;toast('一時停止しました')}
+  else if(!p&&!trk.runAt){trk.runAt=Date.now();trk.newSeg=true;trk.lastFixAt=null;gpsOn();wake(true);toast('記録を再開しました')}
+  trkSave(true);trkUI();
+}
+document.getElementById('tb-pause').onclick=()=>trkPause(!!trk.runAt);
+document.getElementById('tb-end').onclick=()=>{
+  const d=new Date(trk.start);document.getElementById('tb-name').value=trk.name||`踏査 ${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+  document.getElementById('tb-main').hidden=true;document.getElementById('tb-endf').hidden=false;
+  const dsc=document.getElementById('tb-discard');dsc.textContent='捨てる';delete dsc.dataset.ok;
+};
+document.getElementById('tb-back').onclick=()=>{document.getElementById('tb-main').hidden=false;document.getElementById('tb-endf').hidden=true};
+function trkStop(){gpsOff();wake(false);clearInterval(trkTick);trkTick=null;if(trkMe){trkMe.remove();trkMe=null}trkFix=null;if(trkLive){trkLive.remove();trkLive=null}
+  trk=null;idb.del('trkactive').catch(()=>{});document.getElementById('tb-main').hidden=false;document.getElementById('tb-endf').hidden=true;trkUI()}
+document.getElementById('tb-save').onclick=async()=>{
+  if(!trk)return;if(trk.runAt){trk.ms+=Date.now()-trk.runAt;trk.runAt=null}
+  const segs=trk.segs.filter(s=>s.length);
+  if(!segs.length&&!trk.marks.length){toast('記録された地点がないので、保存しませんでした');trkStop();return}
+  const now=new Date().toISOString();
+  const r={id:trk.id,name:document.getElementById('tb-name').value.trim()||'踏査',start:trk.start,end:now,segs,marks:trk.marks,dist:Math.round(trk.dist),ms:trk.ms,upd:now};
+  try{await routeStore(r)}catch(_){toast('保存できませんでした（端末の空き容量を確認してください）');return}
+  routes=routes.filter(x=>x.id!==r.id);routes.unshift(r);trkStop();showRoute(r,true);renderTrkList();
+  toast(`「${r.name}」を保存しました（${fmtDist(r.dist)}・${fmtDur(r.ms)}）`);
+};
+document.getElementById('tb-discard').onclick=e=>{const b=e.currentTarget;
+  if(!b.dataset.ok){b.dataset.ok=1;b.textContent='本当に捨てる';return}
+  trk.marks.forEach(m=>{if(m.ph)idb.del('trkph:'+m.ph).catch(()=>{})});trkStop();toast('記録を捨てました')};
+map.on('dragstart zoomstart',()=>{trkUserMoved=Date.now()});
+
+// ここをメモ（文字と写真）
+let mkDraft=null;
+function mkOpen(){
+  if(!trk||!trk.runAt){toast('記録中にメモできます（一時停止中は「再開」してから）');return}
+  if(!trkFix){toast('現在地がまだ取れていません。少し待ってから押してください');return}
+  mkDraft={id:newId(),lat:trkFix.p[0],lng:trkFix.p[1],acc:Math.round(trkFix.acc),t:new Date().toISOString(),blob:null};
+  document.getElementById('mk-pos').textContent=`${fmtWhen(mkDraft.t)}　北緯 ${mkDraft.lat.toFixed(5)}・東経 ${mkDraft.lng.toFixed(5)}（±${mkDraft.acc}m）`;
+  document.getElementById('mk-text').value='';mkThumb();document.getElementById('mkp').hidden=false;
+}
+function mkThumb(){const b=document.getElementById('mk-thumb');b.replaceChildren();document.getElementById('mk-nophoto').hidden=!(mkDraft&&mkDraft.blob);
+  if(mkDraft&&mkDraft.blob){const im=document.createElement('img');im.alt='撮った写真';im.src=URL.createObjectURL(mkDraft.blob);im.onload=()=>URL.revokeObjectURL(im.src);b.append(im)}}
+async function shrinkPhoto(f){ // 端末の容量を節約するため、長い辺1600pxのJPEGに縮める
+  const MAX=1600;let bmp;
+  try{bmp=await createImageBitmap(f,{imageOrientation:'from-image'})}catch(_){bmp=await new Promise((ok,ng)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=ng;i.src=URL.createObjectURL(f)})}
+  const w=bmp.width,h=bmp.height,k=Math.min(1,MAX/Math.max(w,h));
+  const c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);
+  return await new Promise(ok=>c.toBlob(ok,'image/jpeg',0.8));
+}
+['mk-cam','mk-pick'].forEach(id=>document.getElementById(id).addEventListener('change',async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f||!mkDraft)return;
+  try{mkDraft.blob=await shrinkPhoto(f);mkThumb()}catch(_){toast('写真を読み込めませんでした')}}));
+document.getElementById('mk-nophoto').onclick=()=>{if(mkDraft){mkDraft.blob=null;mkThumb()}};
+document.getElementById('mk-quick').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const t=document.getElementById('mk-text');t.value=(t.value?t.value+'　':'')+b.textContent;t.focus()});
+const mkClose=()=>{document.getElementById('mkp').hidden=true;mkDraft=null};
+document.getElementById('mk-close').onclick=mkClose;document.getElementById('mk-cancel').onclick=mkClose;
+document.getElementById('mk-save').onclick=async()=>{
+  if(!mkDraft||!trk)return mkClose();
+  const text=document.getElementById('mk-text').value.trim();
+  if(!text&&!mkDraft.blob){toast('文字か写真を入れてください');return}
+  const m={id:mkDraft.id,lat:mkDraft.lat,lng:mkDraft.lng,acc:mkDraft.acc,t:mkDraft.t,text};
+  if(mkDraft.blob){try{await idb.set('trkph:'+m.id,mkDraft.blob);m.ph=m.id}catch(_){toast('写真を保存できませんでした（端末の空き容量を確認してください）');return}}
+  trk.marks.push(m);trkSave(true);trkRedrawLive();trkUI();mkClose();toast('メモを残しました');
+};
+document.getElementById('tb-mark').onclick=mkOpen;
+
+// ルートの一覧
+const trkOpen={}; // 一覧で開いている結果（id→'parcels'|'area'）
+function renderTrkList(){
+  const box=document.getElementById('trk-list');box.replaceChildren();
+  if(!routes.length){const p=document.createElement('p');p.className='trk-empty';p.textContent='保存したルートはまだありません。';box.append(p);return}
+  const h=document.createElement('div');h.className='secttl';h.textContent=`保存したルート ${routes.length}件`;box.append(h);
+  routes.forEach(r=>{
+    const it=document.createElement('div');it.className='trk-item';
+    const hd=document.createElement('div');hd.className='trk-h';
+    const cb=document.createElement('input');cb.type='checkbox';cb.checked=!r.hide;cb.setAttribute('aria-label','地図に表示');
+    cb.onchange=()=>{r.hide=!cb.checked;showRoute(r,cb.checked);routeStore(r).catch(()=>{})};
+    const nm=document.createElement('input');nm.className='trk-name';nm.value=r.name;nm.setAttribute('aria-label','ルートの名前');
+    nm.onchange=()=>{r.name=nm.value.trim()||'踏査';nm.value=r.name;r.upd=new Date().toISOString();routeStore(r).catch(()=>{});toast('名前を直しました')};
+    hd.append(cb,nm);
+    const meta=document.createElement('div');meta.className='trk-meta';
+    meta.textContent=`${fmtWhen(r.start)}・${fmtDist(r.dist)}・${fmtDur(r.ms)}・メモ ${r.marks.length}件${r.marks.some(m=>m.ph)?`（写真 ${r.marks.filter(m=>m.ph).length}枚）`:''}`;
+    const acts=document.createElement('div');acts.className='trk-acts';
+    const B=(t,f,cls)=>{const b=document.createElement('button');b.type='button';b.textContent=t;if(cls)b.className=cls;b.onclick=f;acts.append(b);return b};
+    B('地図で見る',()=>{if(r.hide){r.hide=false;cb.checked=true;showRoute(r,true);routeStore(r).catch(()=>{})}
+      const pts=allPts(r).map(q=>[q[0],q[1]]).concat(r.marks.map(m=>[m.lat,m.lng]));if(pts.length)map.fitBounds(L.latLngBounds(pts),{padding:[30,30],maxZoom:17});document.getElementById('trkp').hidden=true});
+    B('通った地番',()=>{trkOpen[r.id]=trkOpen[r.id]==='parcels'?null:'parcels';renderTrkList()},trkOpen[r.id]==='parcels'?'on':'');
+    B('一周の面積',()=>{trkOpen[r.id]=trkOpen[r.id]==='area'?null:'area';if(trkOpen[r.id]!=='area'&&trkArea[r.id]){trkArea[r.id].remove();delete trkArea[r.id]}renderTrkList()},trkOpen[r.id]==='area'?'on':'');
+    B('GPX',()=>dl(new File([routeGPX(r)],fileBase(r)+'.gpx',{type:'application/gpx+xml'})));
+    B('KML',()=>dl(new File([routeKML(r)],fileBase(r)+'.kml',{type:'application/vnd.google-earth.kml+xml'})));
+    const del=B('削除',()=>{if(!del.dataset.ok){del.dataset.ok=1;del.textContent='本当に削除する';del.classList.add('on');return}trkDelete(r)},'del');
+    it.append(hd,meta,acts);
+    if(trkOpen[r.id]==='parcels'){const o=document.createElement('div');o.className='trk-out';o.textContent='調べています…';it.append(o);trkParcels(r).then(list=>fillParcels(o,list)).catch(()=>{o.textContent='地番データを読み込めませんでした。通信状態を確認してください'})}
+    if(trkOpen[r.id]==='area')it.append(areaBox(r));
+    box.append(it);
+  });
+}
+async function trkDelete(r){
+  await idb.del('trk:'+r.id).catch(()=>{});r.marks.forEach(m=>{if(m.ph)idb.del('trkph:'+m.ph).catch(()=>{})});
+  showRoute(r,false);routes=routes.filter(x=>x.id!==r.id);renderTrkList();toast(`「${r.name}」を削除しました`);
+}
+const ymd=iso=>{const d=new Date(iso);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+const fileBase=r=>`踏査_${ymd(r.start)}_${r.name}`.replace(/[\\/:*?"<>|\s]+/g,'_').slice(0,60);
+function dl(file){const a=document.createElement('a');a.href=URL.createObjectURL(file);a.download=file.name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000);toast(`ダウンロードフォルダに「${file.name}」を保存しました`)}
+const xesc=s=>String(s).replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c]));
+function routeGPX(r){
+  const t0=Date.parse(r.start);
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="${xesc(CFG.title)}" xmlns="http://www.topografix.com/GPX/1/1">\n<metadata><name>${xesc(r.name)}</name><time>${r.start}</time></metadata>\n`+
+    r.marks.map(m=>`<wpt lat="${m.lat}" lon="${m.lng}"><time>${m.t}</time><name>${xesc(m.text||'メモ')}</name>${m.ph?'<desc>写真あり（アプリ内）</desc>':''}</wpt>\n`).join('')+
+    `<trk><name>${xesc(r.name)}</name>\n`+r.segs.map(sg=>'<trkseg>\n'+sg.map(q=>`<trkpt lat="${q[0]}" lon="${q[1]}"><time>${new Date(t0+q[2]*1000).toISOString()}</time></trkpt>`).join('\n')+'\n</trkseg>\n').join('')+'</trk>\n</gpx>\n';
+}
+function routeKML(r){
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>${xesc(r.name)}</name>\n<Style id="line"><LineStyle><color>ffd326c0</color><width>4</width></LineStyle></Style>\n`+
+    `<Placemark><name>${xesc(r.name)}</name><description>${xesc(fmtWhen(r.start)+' '+fmtDist(r.dist))}</description><styleUrl>#line</styleUrl><MultiGeometry>`+
+    r.segs.filter(s=>s.length>1).map(sg=>`<LineString><tessellate>1</tessellate><coordinates>${sg.map(q=>`${q[1]},${q[0]},0`).join(' ')}</coordinates></LineString>`).join('')+'</MultiGeometry></Placemark>\n'+
+    r.marks.map(m=>`<Placemark><name>${xesc(m.text||'メモ')}</name><description>${xesc(fmtWhen(m.t))}${m.ph?' 写真あり（アプリ内）':''}</description><Point><coordinates>${m.lng},${m.lat},0</coordinates></Point></Placemark>\n`).join('')+'</Document></kml>\n';
+}
+// 一周の面積：歩いた点を順につなぎ、終点と始点を結んで閉じた範囲の面積
+function areaBox(r){
+  const o=document.createElement('div');o.className='trk-out';
+  const pts=allPts(r).map(q=>[q[0],q[1]]);
+  if(pts.length<3){o.textContent='面積を出すには、もっと長く歩いた記録が必要です';return o}
+  const a=ringAreaLL(pts),gap=gdist(pts[0],pts[pts.length-1]);
+  const big=document.createElement('div');big.className='big';big.textContent=`約 ${(a/10000).toFixed(2)} ha`;
+  const sm=document.createElement('div');sm.className='muted';sm.textContent=`（${Math.round(a).toLocaleString()} m²）`;
+  const g=document.createElement('div');g.className=gap>30?'warn':'muted';
+  g.textContent=gap>30?`始点と終点が約${Math.round(gap)}m離れています。直線で結んで計算したので、一周していないと正しい面積になりません。`:`始点と終点の差は約${Math.round(gap)}mです。`;
+  const n=document.createElement('div');n.className='muted';n.textContent='GPSの誤差があるので目安です（伐採届の面積確認などの参考に）。途中で道が交差すると小さく出ます。';
+  o.append(big,sm,g,n);
+  if(trkArea[r.id])trkArea[r.id].remove();
+  trkArea[r.id]=L.polygon(pts,{renderer:trkRenderer,color:TRK_COLOR,weight:2,dashArray:'6 4',fillColor:TRK_COLOR,fillOpacity:.18,interactive:false}).addTo(map);
+  if(!trkShown[r.id]){r.hide=false;showRoute(r,true);routeStore(r).catch(()=>{})}
+  return o;
+}
+// 通った地番：ルートの点が入っている地番（民有林）と国有林の小班
+function inRing(x,y,ring){let c=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++){const xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))c=!c}return c}
+function inGeom(g,lng,lat){const P=g.type==='Polygon'?[g.coordinates]:g.type==='MultiPolygon'?g.coordinates:[];return P.some(pg=>inRing(lng,lat,pg[0])&&!pg.slice(1).some(h=>inRing(lng,lat,h)))}
+async function trkParcels(r){
+  const pts=allPts(r);if(!pts.length)return [];
+  const rb=L.latLngBounds(pts.map(q=>[q[0],q[1]]));
+  await Promise.all(districts.filter(d=>rb.intersects(bboxBounds(d.bbox))).map(loadDistrict));
+  if(!kkLayer){try{await kkLoad()}catch(_){}}
+  const hits=[];
+  const test=(l,kk)=>{const g=l.feature&&l.feature.geometry;if(!g)return;const b=l.getBounds();if(!b.intersects(rb))return;
+    let n=0;for(const q of pts){if(b.contains([q[0],q[1]])&&inGeom(g,q[1],q[0]))n++}if(n)hits.push({l,kk,n})};
+  index.forEach(l=>test(l,false));if(kkLayer)kkLayer.eachLayer(l=>test(l,true));
+  return hits;
+}
+function fillParcels(o,hits){
+  o.replaceChildren();
+  if(!hits.length){o.textContent='ルートが通った地番は見つかりませんでした（地番図のない所など）';return}
+  const t=document.createElement('div');t.className='muted';t.textContent=`通った地番 ${hits.filter(h=>!h.kk).length}筆${hits.some(h=>h.kk)?`・国有林 ${hits.filter(h=>h.kk).length}小班`:''}（押すと地番のカードを開きます）`;o.append(t);
+  hits.sort((a,b)=>a.kk-b.kk||(oazaOf(a.l.feature.properties)).localeCompare(oazaOf(b.l.feature.properties),'ja')||chibanOf(a.l.feature.properties).localeCompare(chibanOf(b.l.feature.properties),'ja',{numeric:true}));
+  hits.forEach(h=>{const p=h.l.feature.properties,b=document.createElement('button');b.type='button';b.className='trk-pl';
+    if(h.kk){b.innerHTML='<b></b> <small></small>';b.firstChild.textContent='国有林 '+kkLin(p.n);b.lastChild.textContent=(p.sp&&p.sp[0]&&p.sp[0][0])||''}
+    else{const s=candSummary(p);b.innerHTML='<b></b> <span></span> <small></small>';b.children[0].textContent=chibanOf(p);b.children[1].textContent=oazaOf(p);b.children[2].textContent=s}
+    b.onclick=()=>{document.getElementById('trkp').hidden=true;if(h.kk&&!kkOn){kkOn=true;try{LS.setItem('ui:kokuyu2','on')}catch(e){}}map.fitBounds(h.l.getBounds(),{maxZoom:18});kkApply();openSheet(h.l)};
+    o.append(b)});
+}
+document.getElementById('trk').onclick=()=>{renderTrkList();trkUI();document.getElementById('trkp').hidden=false};
+document.getElementById('trk-close').onclick=()=>document.getElementById('trkp').hidden=true;
+document.getElementById('trkp').addEventListener('click',e=>{if(e.target.id==='trkp')e.target.hidden=true});
+document.getElementById('mkp').addEventListener('click',e=>{if(e.target.id==='mkp')mkClose()});
+document.getElementById('trk-start').onclick=trkStart;
+// 起動時：保存したルートを読み、途中の記録があれば一時停止の状態で戻す
+async function trkLoadAll(){
+  try{const ks=await idb.keys('trk:');const list=await Promise.all(ks.map(k=>idb.get(k)));
+    routes=list.filter(Boolean).sort((a,b)=>b.start.localeCompare(a.start));routes.forEach(r=>{if(!r.hide)showRoute(r,true)})}catch(_){}
+  try{const a=await idb.get('trkactive');if(a&&!trk){trk=a;if(trk.runAt){trk.ms+=Math.max(0,(trk.savedAt||trk.runAt)-trk.runAt);trk.runAt=null}trkRedrawLive();trkUI();
+    toast('前回の踏査の記録が途中です。「再開」で続きを記録、「終了」で保存できます')}}catch(_){}
+}
+trkLoadAll();
+
+// ---- 記録の受け渡し（メモ・地積・伐採届・踏査ルートをファイルで別の端末へ） ----
 const REC_NS=['memo','mlabel','chiseki','bassai','rireki'];
 function collectRecords(){const items={};try{for(let i=0;i<LS.length;i++){const k=LS.key(i);if(REC_NS.some(n=>k.startsWith(n+':')))items[k]=LS.getItem(k)}}catch(e){}return items}
-function recSummary(items){const c={memo:0,mlabel:0,chiseki:0,bassai:0,rireki:0};Object.entries(items).forEach(([k,v])=>{const n=k.split(':')[0];if(n==='rireki'){try{c.rireki+=JSON.parse(v).length}catch(e){}}else if(n in c)c[n]++});return `メモ表示 ${c.mlabel}件・メモ内部記録 ${c.memo}件・地積 ${c.chiseki}件・伐採届 ${c.bassai}件・施業履歴 ${c.rireki}件`}
-function recFile(){const items=collectRecords();const d=new Date();const stamp=d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'-'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0');
-  const body=JSON.stringify({app:CFG.recApp,kind:'records',version:1,exportedAt:d.toISOString(),items},null,1);
+// 踏査ルートも記録として数える（写真はファイルに書き出すときに付ける）
+const recItems=()=>{const it=collectRecords();routes.forEach(r=>it['route:'+r.id]=JSON.stringify(r));return it};
+function recSummary(items){const c={memo:0,mlabel:0,chiseki:0,bassai:0,rireki:0,route:0};Object.entries(items).forEach(([k,v])=>{const n=k.split(':')[0];if(n==='rireki'){try{c.rireki+=JSON.parse(v).length}catch(e){}}else if(n in c)c[n]++});return `メモ表示 ${c.mlabel}件・メモ内部記録 ${c.memo}件・地積 ${c.chiseki}件・伐採届 ${c.bassai}件・施業履歴 ${c.rireki}件・踏査ルート ${c.route}件`}
+async function recFile(){const items=recItems();const photos={};
+  for(const r of routes)for(const m of r.marks)if(m.ph){try{const b=await idb.get('trkph:'+m.ph);if(b)photos[m.ph]=await new Promise(ok=>{const fr=new FileReader();fr.onload=()=>ok(fr.result);fr.readAsDataURL(b)})}catch(_){}}const d=new Date();const stamp=d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'-'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0');
+  const body=JSON.stringify({app:CFG.recApp,kind:'records',version:1,exportedAt:d.toISOString(),items,photos},null,1);
   return {file:new File([body],`${CFG.filePrefix}-${stamp}.json`,{type:'application/json'}),txt:new File([body],`${CFG.filePrefix}-${stamp}.txt`,{type:'text/plain'}),count:Object.keys(items).length,items}}
 function rpMsg(t){const m=document.getElementById('rp-msg');m.textContent=t;m.hidden=!t}
 // ---- 地図を端末に保存（国土地理院の地図画像を、Wi-Fiのときに先に読んでおく） ----
@@ -1109,13 +1497,13 @@ document.getElementById('svf-go').onclick=async()=>{
   svEstimate();svfEstimate();
 };
 document.getElementById('sv-clear').onclick=async()=>{try{await caches.delete(SAVED_CACHE)}catch(_){}['sv-prog','svf-prog'].forEach(id=>svProg(id,''));svProg('sv-prog','保存した地図を消しました');svEstimate();svfEstimate()};
-function openRec(){rpMsg('');if(!svBusy)['sv-prog','svf-prog'].forEach(id=>svProg(id,''));svEstimate();svfEstimate();document.getElementById('rp-sum').textContent='この端末の記録：'+recSummary(collectRecords());document.getElementById('recp').hidden=false}
+function openRec(){rpMsg('');trkSave(true);if(!svBusy)['sv-prog','svf-prog'].forEach(id=>svProg(id,''));svEstimate();svfEstimate();document.getElementById('rp-sum').textContent='この端末の記録：'+recSummary(recItems());document.getElementById('recp').hidden=false}
 document.getElementById('rec-open').onclick=openRec;
 document.getElementById('rec-close').onclick=()=>document.getElementById('recp').hidden=true;
 document.getElementById('recp').addEventListener('click',e=>{if(e.target.id==='recp')e.target.hidden=true});
 const canShareFiles=(()=>{try{return !!(navigator.share&&navigator.canShare&&navigator.canShare({files:[new File(['x'],'t.txt',{type:'text/plain'})]}))}catch(e){return false}})();
 document.getElementById('rec-share').hidden=!canShareFiles;
-document.getElementById('rec-share').onclick=async()=>{const r=recFile();if(!r.count){rpMsg('送る記録がまだありません');return}
+document.getElementById('rec-share').onclick=async()=>{const r=await recFile();if(!r.count){rpMsg('送る記録がまだありません');return}
   // スマホの共有で送れるよう、中身はそのままテキストファイル（.txt）として渡す
   const f=r.txt;rpMsg('共有の画面を開いています…');
   try{
@@ -1126,14 +1514,23 @@ document.getElementById('rec-share').onclick=async()=>{const r=recFile();if(!r.c
     saveRec(r);rpMsg(`共有できなかったので、ダウンロードフォルダに「${r.file.name}」を保存しました。そのファイルをLINEやメールで送ってください。（理由：${e&&e.name||'不明'}）`);
   }};
 function saveRec(r){const a=document.createElement('a');a.href=URL.createObjectURL(r.file);a.download=r.file.name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000)}
-document.getElementById('rec-save').onclick=()=>{const r=recFile();if(!r.count){rpMsg('保存する記録がまだありません');return}
+document.getElementById('rec-save').onclick=async()=>{const r=await recFile();if(!r.count){rpMsg('保存する記録がまだありません');return}
   saveRec(r);rpMsg(`ダウンロードフォルダに「${r.file.name}」を保存しました`)};
 document.getElementById('rec-file').addEventListener('change',async e=>{
   const f=e.target.files[0];e.target.value='';if(!f)return;
   try{const o=JSON.parse(await f.text());
     if(!o||o.app!==CFG.recApp||!o.items)throw new Error('このアプリの記録ファイルではないようです');
     let add=0,upd=0;const cur=collectRecords();
-    for(const [k,v] of Object.entries(o.items)){if(!REC_NS.some(n=>k.startsWith(n+':'))||typeof v!=='string')continue;
+    let rAdd=0,rUpd=0;
+    for(const [k,v] of Object.entries(o.items)){
+      if(k.startsWith('route:')&&typeof v==='string'){ // 踏査ルート：無いものは追加、同じルートは新しい方に合わせる
+        let r;try{r=JSON.parse(v)}catch(_){continue}if(!r||!r.id||!Array.isArray(r.segs)||!Array.isArray(r.marks))continue;
+        const mine=routes.find(x=>x.id===r.id);if(mine&&(mine.upd||'')>=(r.upd||''))continue;
+        for(const m of r.marks){const u=m.ph&&o.photos&&o.photos[m.ph];if(u&&/^data:image\//.test(u)){try{await idb.set('trkph:'+m.ph,await (await fetch(u)).blob())}catch(_){}}}
+        try{await routeStore(r)}catch(_){throw new Error('この端末に保存できませんでした（空き容量を確認してください）')}
+        if(mine){r.hide=mine.hide;routes[routes.indexOf(mine)]=r;rUpd++}else{routes.push(r);rAdd++}
+        showRoute(r,!r.hide);continue}
+      if(!REC_NS.some(n=>k.startsWith(n+':'))||typeof v!=='string')continue;
       if(k.startsWith('rireki:')){ // 施業履歴は1件ずつ合わせる（同じ記録は新しい内容に、無い記録は追加）
         let inc=[],mine=[];try{inc=JSON.parse(v)}catch(_){continue}try{mine=JSON.parse(cur[k]||'[]')}catch(_){}
         let ch=false;for(const e of inc){if(!e||!e.id)continue;const i=mine.findIndex(x=>x.id===e.id);
@@ -1141,11 +1538,12 @@ document.getElementById('rec-file').addEventListener('change',async e=>{
         if(ch){try{LS.setItem(k,JSON.stringify(mine))}catch(_){throw new Error('この端末に保存できませんでした（空き容量を確認してください）')}}
         continue}
       if(cur[k]===v)continue; if(k in cur)upd++;else add++; try{LS.setItem(k,v)}catch(_){throw new Error('この端末に保存できませんでした（空き容量を確認してください）')}}
+    routes.sort((a,b)=>b.start.localeCompare(a.start));add+=rAdd;upd+=rUpd;
     migrateLabels();
     if(parcels){parcels.eachLayer(l=>{applyLabel(l)});parcels.setStyle(styleFor)}
     if(selected)openSheet(selected);
-    document.getElementById('rp-sum').textContent='この端末の記録：'+recSummary(collectRecords());
-    rpMsg(add+upd?`取り込みました：新規 ${add}件・上書き ${upd}件`:'新しい記録はありませんでした（すでに同じ内容です）');
+    document.getElementById('rp-sum').textContent='この端末の記録：'+recSummary(recItems());
+    rpMsg(add+upd?`取り込みました：新規 ${add}件・上書き ${upd}件${rAdd+rUpd?`（うち踏査ルート ${rAdd+rUpd}件）`:''}`:'新しい記録はありませんでした（すでに同じ内容です）');
   }catch(err){rpMsg(err.message||'記録を取り込めませんでした')}
 });
 </script>
