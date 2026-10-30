@@ -1,5 +1,5 @@
 // 錦江町 森林管理システム：オフラインでも開けるようにするための仕組み
-const VER='v38';
+const VER='v39';
 // この仕組みが置かれたフォルダ（例：/my-first-repo/app/）。町ごとのフォルダで同じファイルを使う
 const BASE=new URL(self.registration.scope).pathname;
 const PFX=BASE.endsWith('/app/')?'forest':BASE.split('/').filter(Boolean).pop(); // 錦江町は今までどおり「forest」
@@ -54,7 +54,8 @@ self.addEventListener('fetch',e=>{
   if(req.mode==='navigate'||(u.origin===location.origin&&(u.pathname===BASE+'index.html'||u.pathname===BASE))){e.respondWith(networkFirst(req,SHELL,true));return}
   // 目録（小さい）は毎回最新を確認、地番データ本体は版番号が同じ間は端末の保存分を使う
   if(u.origin===location.origin&&u.pathname===BASE+'data/index.json'){e.respondWith(networkFirst(req,DATA,true));return}
-  if(u.origin===location.origin&&u.pathname.startsWith(BASE+'data/')){e.respondWith(dataCache(req));return}
+  // 地番データ本体（まとめた版は、町ごとの版のフォルダにある地番データも使う）
+  if(u.origin===location.origin&&(u.pathname.startsWith(BASE+'data/')||(u.pathname.includes('/data/')&&u.pathname.endsWith('.geojson')))){e.respondWith(dataCache(req));return}
   if(u.origin===location.origin&&u.pathname===BASE+'kokuyu/index.json'){e.respondWith(networkFirst(req,DATA,true));return}
   if(u.origin===location.origin&&u.pathname.startsWith(BASE+'kokuyu/')){e.respondWith(dataCache(req));return}
   // 地図の画像は保存分を先に使う（画面から直接読むもの＝保存処理や標高の計算は、そのまま通す）
