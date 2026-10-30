@@ -132,6 +132,9 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
 .pbtn{display:inline-block;font:inherit;font-size:14px;padding:9px 14px;border-radius:8px;border:0;background:var(--accent);color:var(--accent-fg);cursor:pointer}
 #rec-save{background:transparent;color:var(--accent);border:1px solid var(--accent)}
 .opt2{font-size:13px;margin:0 0 6px}.opt2 input{vertical-align:-2px;margin-right:4px}
+.sv-forest{border-top:1px dashed var(--line);margin-top:12px;padding-top:10px}
+.sv-forest h4{font-size:14px;margin:0 0 4px}
+.sv-forest p{font-size:12.5px;color:var(--muted);margin:0 0 6px;line-height:1.6}
 .sv-est{font-size:12px;color:var(--muted);margin:0 0 8px}
 .pbtn.ghost2{background:transparent;color:var(--muted);border:1px solid var(--line)}
 .rp-note{font-size:12px;color:var(--muted);margin:14px 0 0}
@@ -263,8 +266,14 @@ textarea{width:100%;min-height:72px;max-height:28vh;font:inherit;padding:8px;bor
       <div class="opt2"><label><input type="checkbox" id="sv-photo"> 航空写真も保存する（通信量が約3倍）</label></div>
       <p class="sv-est" id="sv-est"></p>
       <div class="rp-btns"><button id="sv-go" class="pbtn" type="button">この範囲の地図を保存</button><button id="sv-clear" class="pbtn ghost2" type="button">保存した地図を消す</button></div>
+      <div class="sv-forest">
+        <h4>町の森林をまとめて保存</h4>
+        <p>森林簿のある民有林の地番（圏外になりやすい山林）を、地番の境界がはっきり見える拡大レベル17まで保存します。町全体の大まかな地図（レベル15まで）も一緒に保存します。国有林は含みません。</p>
+        <p class="sv-est" id="svf-est"></p>
+        <div class="rp-btns"><button id="svf-go" class="pbtn" type="button">町の森林を保存</button><button id="svf-stop" class="pbtn ghost2" type="button" hidden>中止</button></div>
+      </div>
     </div>
-    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-30m</span></p>
+    <p class="rp-note">森林簿のCSVはここには含まれません。各端末で読み込んでください。<span class="rp-ver">版 2026-10-31n</span></p>
   </div>
 </div>
 <form id="search" autocomplete="off">
@@ -390,8 +399,29 @@ const savedView=(()=>{try{const v=JSON.parse(LS.getItem('ui:view')||'null');retu
 const map=L.map('map',{zoomControl:true,preferCanvas:true}).setView(savedView?[savedView.lat,savedView.lng]:CFG.center,savedView?savedView.z:13);
 let svT;map.on('moveend',()=>{clearTimeout(svT);svT=setTimeout(()=>{try{const c=map.getCenter();LS.setItem('ui:view',JSON.stringify({lat:+c.lat.toFixed(6),lng:+c.lng.toFixed(6),z:map.getZoom()}))}catch(e){}},500)});
 const gsiAttr='<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>';
-const std=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',{maxZoom:18,attribution:gsiAttr,updateWhenZooming:false,keepBuffer:1});
-const photo=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',{maxZoom:18,attribution:gsiAttr,updateWhenZooming:false,keepBuffer:1});
+// 地図の画像が読めないとき（圏外で、保存していない拡大レベルなど）は、1〜4段階粗い画像を引き伸ばして出す
+const FallbackTileLayer=L.TileLayer.extend({
+  createTile(coords,done){
+    const wrap=document.createElement('div');wrap.style.overflow='hidden';
+    const img=document.createElement('img');img.alt='';img.setAttribute('role','presentation');img.draggable=false;
+    img.style.cssText='position:absolute;left:0;top:0;width:100%;height:100%;max-width:none;user-select:none';
+    wrap.appendChild(img);
+    const url=(z,x,y)=>this._url.replace('{z}',z).replace('{x}',x).replace('{y}',y);
+    let dz=0;
+    const load=()=>{
+      if(!dz){img.src=url(coords.z,coords.x,coords.y);return}
+      const n=1<<dz,px=coords.x>>dz,py=coords.y>>dz,sz=this.getTileSize();
+      img.style.width=sz.x*n+'px';img.style.height=sz.y*n+'px';
+      img.style.left=-(coords.x-px*n)*sz.x+'px';img.style.top=-(coords.y-py*n)*sz.y+'px';
+      img.src=url(coords.z-dz,px,py);
+    };
+    img.onload=()=>done(null,wrap);
+    img.onerror=()=>{if(dz<4&&coords.z-dz>12){dz++;load()}else done(new Error('tile'),wrap)};
+    load();return wrap;
+  }
+});
+const std=new FallbackTileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',{maxZoom:18,attribution:gsiAttr,updateWhenZooming:false,keepBuffer:1});
+const photo=new FallbackTileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',{maxZoom:18,attribution:gsiAttr,updateWhenZooming:false,keepBuffer:1});
 std.addTo(map);
 function setBase(p){
   (p?std:photo).remove();(p?photo:std).addTo(map);
@@ -1018,20 +1048,62 @@ async function svEstimate(){
   document.getElementById('sv-go').disabled=list.length>SV_MAX;
 }
 document.getElementById('sv-photo').addEventListener('change',svEstimate);
-document.getElementById('sv-go').onclick=async()=>{
+let svStop=false,svBusy=false;
+async function saveTiles(list){ // 地図の画像を端末に保存（保存済みは飛ばす、途中で中止できる）
   const c=navigator.connection;if(c&&(c.type==='cellular'))rpMsg('モバイル回線のようです。Wi-Fiにつないでからの保存をおすすめします。続けて保存しています…');
-  const {list}=svTiles(document.getElementById('sv-photo').checked);if(list.length>SV_MAX)return;
-  let cache;try{cache=await caches.open(SAVED_CACHE)}catch(_){rpMsg('この端末では地図を保存できません');return}
-  const btn=document.getElementById('sv-go');btn.disabled=true;let done=0,ok=0,skip=0,ng=0;
+  let cache;try{cache=await caches.open(SAVED_CACHE)}catch(_){rpMsg('この端末では地図を保存できません');return null}
+  svBusy=true;svStop=false;['sv-go','svf-go'].forEach(id=>document.getElementById(id).disabled=true);document.getElementById('svf-stop').hidden=false;
+  let done=0,ok=0,skip=0,ng=0;
   const one=async u=>{try{if(await cache.match(u)){skip++;return}const r=await fetch(u,{mode:'cors'});if(r.ok){await cache.put(u,r);ok++}else if(r.status!==404)ng++}catch(_){ng++}
     finally{done++;if(done%10===0||done===list.length)rpMsg(`地図を保存しています… ${done.toLocaleString()}/${list.length.toLocaleString()}`)}};
-  for(let i=0;i<list.length;i+=6)await Promise.all(list.slice(i,i+6).map(one));
-  btn.disabled=false;
+  for(let i=0;i<list.length&&!svStop;i+=6)await Promise.all(list.slice(i,i+6).map(one));
+  svBusy=false;['sv-go','svf-go'].forEach(id=>document.getElementById(id).disabled=false);document.getElementById('svf-stop').hidden=true;
+  return {ok,skip,ng,stopped:svStop,done,total:list.length};
+}
+document.getElementById('svf-stop').onclick=()=>{svStop=true};
+document.getElementById('sv-go').onclick=async()=>{
+  const {list}=svTiles(document.getElementById('sv-photo').checked);if(list.length>SV_MAX)return;
+  const res=await saveTiles(list);if(!res)return;const {ok,skip,ng}=res;
   rpMsg(ng&&!ok?'地図を保存できませんでした。通信状態を確認してください':`地図を保存しました：新しく ${ok.toLocaleString()}枚（保存済み ${skip.toLocaleString()}枚）${ng?`・失敗 ${ng}枚`:''}。この範囲は通信をほとんど使わずに表示できます`);
   svEstimate();
 };
-document.getElementById('sv-clear').onclick=async()=>{try{await caches.delete(SAVED_CACHE)}catch(_){}rpMsg('保存した地図を消しました');svEstimate()};
-function openRec(){rpMsg('');svEstimate();document.getElementById('rp-sum').textContent='この端末の記録：'+recSummary(collectRecords());document.getElementById('recp').hidden=false}
+// 町の森林（森林簿のある民有林の地番）にかかる地図の画像：レベル12〜15は町全体、16・17は森林の地番だけ
+const tx=(lon,z)=>Math.floor((lon+180)/360*2**z),ty=(lat,z)=>{const s=Math.sin(lat*Math.PI/180);return Math.floor((0.5-Math.log((1+s)/(1-s))/(4*Math.PI))*2**z)};
+async function forestTiles(withPhoto){
+  const set=new Set(),add=(z,x,y)=>set.add(z+'/'+x+'/'+y);
+  const all=districts.reduce((b,d)=>[Math.min(b[0],d.bbox[0]),Math.min(b[1],d.bbox[1]),Math.max(b[2],d.bbox[2]),Math.max(b[3],d.bbox[3])],[999,999,-999,-999]);
+  for(let z=12;z<=15;z++)for(let x=tx(all[0],z);x<=tx(all[2],z);x++)for(let y=ty(all[3],z);y<=ty(all[1],z);y++)add(z,x,y);
+  const list=await Promise.all(districts.map(d=>fetch('data/'+d.file+(d.v?'?v='+d.v:'')).then(r=>r.json())));
+  list.forEach(gj=>gj.features.forEach(f=>{if(!forestOf(f.properties))return;const g=f.geometry;
+    const rings=g.type==='Polygon'?[g.coordinates[0]]:g.type==='MultiPolygon'?g.coordinates.map(q=>q[0]):[];
+    rings.forEach(r=>{let x0=180,y0=90,x1=-180,y1=-90;r.forEach(([lo,la])=>{x0=Math.min(x0,lo);x1=Math.max(x1,lo);y0=Math.min(y0,la);y1=Math.max(y1,la)});
+      for(const z of [16,17])for(let x=tx(x0,z);x<=tx(x1,z);x++)for(let y=ty(y1,z);y<=ty(y0,z);y++)add(z,x,y)})}));
+  const urls=[];set.forEach(k=>{const [z,x,y]=k.split('/');urls.push(`https://cyberjapandata.gsi.go.jp/xyz/std/${z}/${x}/${y}.png`);if(withPhoto)urls.push(`https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/${z}/${x}/${y}.jpg`)});
+  return urls;
+}
+let svfList=null;
+async function svfEstimate(){
+  const e=document.getElementById('svf-est');if(!e)return;
+  if(!forestLoaded){e.textContent='森林簿を読み込むと使えます（森林簿のある地番を保存します）。';document.getElementById('svf-go').disabled=true;return}
+  if(svBusy)return;
+  e.textContent='保存する枚数を数えています…';
+  try{const ph=document.getElementById('sv-photo').checked;svfList=await forestTiles(ph);
+    let have=0;try{const c=await caches.open(SAVED_CACHE);for(const u of svfList)if(await c.match(u))have++}catch(_){}
+    const rest=svfList.length-have,mb=rest*(ph?0.035:0.02);
+    e.textContent=`${svfList.length.toLocaleString()}枚（うち保存済み ${have.toLocaleString()}枚）。残り約${mb<1?mb.toFixed(1):Math.round(mb)}MB。Wi-Fiのときに保存してください。途中で中止しても、次に押すと続きから保存します。`;
+    document.getElementById('svf-go').disabled=!rest}
+  catch(_){e.textContent='地番データを読み込めませんでした。通信状態を確認してください。'}
+}
+document.getElementById('sv-photo').addEventListener('change',svfEstimate);
+document.getElementById('svf-go').onclick=async()=>{
+  if(!svfList)await svfEstimate();if(!svfList)return;
+  const res=await saveTiles(svfList);if(!res)return;
+  rpMsg(res.stopped?`中止しました（${res.done.toLocaleString()}/${res.total.toLocaleString()}）。もう一度押すと続きから保存します`:
+    res.ng&&!res.ok?'地図を保存できませんでした。通信状態を確認してください':`町の森林の地図を保存しました：新しく ${res.ok.toLocaleString()}枚${res.ng?`（失敗 ${res.ng}枚。もう一度押すと再挑戦します）`:''}。圏外の山林でも地図を表示できます`);
+  svEstimate();svfEstimate();
+};
+document.getElementById('sv-clear').onclick=async()=>{try{await caches.delete(SAVED_CACHE)}catch(_){}rpMsg('保存した地図を消しました');svEstimate();svfEstimate()};
+function openRec(){rpMsg('');svEstimate();svfEstimate();document.getElementById('rp-sum').textContent='この端末の記録：'+recSummary(collectRecords());document.getElementById('recp').hidden=false}
 document.getElementById('rec-open').onclick=openRec;
 document.getElementById('rec-close').onclick=()=>document.getElementById('recp').hidden=true;
 document.getElementById('recp').addEventListener('click',e=>{if(e.target.id==='recp')e.target.hidden=true});
