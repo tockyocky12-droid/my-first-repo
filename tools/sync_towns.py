@@ -2,7 +2,8 @@
 # 町ごとに違うのは config.js・manifest.webmanifest・data/・kokuyu/ と、index.html のタイトル2か所だけ。
 import shutil, re, sys, os
 ROOT=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TOWNS={'minamiosumi':{'title':'南大隅町森林管理システム','short':'南大隅森林'}}
+TOWNS={'minamiosumi':{'title':'南大隅町森林管理システム','short':'南大隅森林'},
+       'kimotsuki':{'title':'肝付町森林管理システム','short':'肝付町森林管理システム'}}
 for d,t in TOWNS.items():
     h=open(os.path.join(ROOT,'app','index.html'),encoding='utf-8').read()
     h=h.replace('<title>錦江町森林管理システム</title>',f"<title>{t['title']}</title>",1)
