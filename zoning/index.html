@@ -87,6 +87,7 @@ tr.off .ftog{color:var(--muted)}
 .chip{display:inline-block;padding:2px 10px;border-radius:999px;color:#fff;font-size:13px;font-weight:700}
 .chip.man::after{content:"手直し";font-weight:400;font-size:11px;margin-left:6px;background:rgba(255,255,255,.25);padding:0 5px;border-radius:999px}
 .why{font-size:13px;color:var(--muted);margin:4px 0 8px}
+.own{font-size:14px;margin:8px 0 2px;line-height:1.6}.own b{font-weight:700;margin-right:2px}.own .sw{display:inline-block;width:11px;height:11px;border-radius:2px;margin:0 4px 0 2px;vertical-align:-1px}
 .ovr{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;margin:8px 0}
 .ovr select{font:inherit;font-size:14px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
 table.sb{width:100%;border-collapse:collapse;font-size:12.5px;font-family:var(--f-data);font-variant-numeric:tabular-nums}
@@ -572,6 +573,11 @@ function openParcel(l){
   const row=el('div');row.style.marginTop='8px';row.append(chip);
   if(info.plan){const pc=el('span','note',`　現行区分：${info.plan.n}`);row.append(pc)}
   panel.append(row);
+  // 所有形態（森林簿）。小班ごとに違うときは面積の大きい順にすべて出す
+  {const by={};info.recs.forEach(r=>{const k=r.own||'不明';by[k]=(by[k]||0)+(r.a||0)});
+    const ks=Object.keys(by).sort((a,b)=>by[b]-by[a]);const ow=el('p','own');ow.append(el('b',null,'所有形態：'));
+    ks.forEach((k,i)=>{const o=ownOf(k);if(i)ow.append('・');if(o){const s=el('span','sw');s.style.background=o.c;ow.append(s)}
+      ow.append(k+(ks.length>1?`（${by[k].toFixed(2)}ha）`:''))});panel.append(ow)}
   panel.append(el('p','why',info.man?`自動判定は「${ZMAP[info.auto].n}」でしたが、手直しで「${z.n}」にしています。`:`自動判定：${z.d}`));
   // 手直し
   const ov=el('div','ovr');const lb=el('label',null,'ゾーンを手直し');lb.htmlFor='ovr';
@@ -621,16 +627,16 @@ document.getElementById('cond-apply').onclick=()=>{readCond();try{localStorage.s
 document.getElementById('cond-reset').onclick=()=>{opts=Object.assign({},DEF);fillCond()};
 
 // ===== CSV書き出し（小班ごとの判定結果） =====
-const ZVER='版 2026-10-30z10';
+const ZVER='版 2026-11-01z11';
 function exportBtn(){const w=el('div','expw');const b=el('button','pbtn ghost','判定結果をCSVで書き出す');b.type='button';b.onclick=exportCSV;
   w.append(b,el('span','note','小班ごとの判定・傾斜などをExcelで開ける形で保存します'),el('span','zver',ZVER));return w}
 function exportCSV(){
   const ovr=ovrMap();
-  const head=['大字','地番','林小班','字名','林種','樹種','林齢','齢級','面積ha','平均傾斜(度)','保安林','現行区分','自動判定','判定理由','手直し','ゾーン'];
+  const head=['大字','地番','林小班','字名','林種','樹種','林齢','齢級','面積ha','所有形態','平均傾斜(度)','保安林','現行区分','自動判定','判定理由','手直し','ゾーン'];
   const q=v=>{v=v==null?'':String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
   const lines=[head.join(',')];
   rowsAll.forEach(r=>{const [z,why]=zoneOf(r);const m=ovr[r.o+'|'+r.cb];const mm=ZMAP[m]?m:'';
-    lines.push([r.o,r.cb,r.k,r.az,r.lt,r.sp,r.age,r.kyu,r.a,slopeOf(r),r.ho,r.plan,ZMAP[z].n,why,mm?ZMAP[mm].n:'',ZMAP[mm||z].n].map(q).join(','))});
+    lines.push([r.o,r.cb,r.k,r.az,r.lt,r.sp,r.age,r.kyu,r.a,r.own,slopeOf(r),r.ho,r.plan,ZMAP[z].n,why,mm?ZMAP[mm].n:'',ZMAP[mm||z].n].map(q).join(','))});
   lines.push('');lines.push(q('この成果品は、鹿児島県森林資源情報データ（ダウンロード）から作成したものである'));
   const blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv'});const a=document.createElement('a');
   const d=new Date();a.download=`zoning-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}.csv`;
