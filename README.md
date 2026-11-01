@@ -51,6 +51,7 @@ GitHubの使い方を練習するために作りました。
 錦江町森林管理システムと同じアプリ本体で、南大隅町のデータを使う版です。URL：https://tockyocky12-droid.github.io/my-first-repo/minamiosumi/
 
 - 町ごとに違うのは config.js・manifest.webmanifest・data/（地番）・kokuyu/（国有林）だけです。アプリ本体を直したら `python3 tools/sync_towns.py` で写します
+- 地番データを入れ替えたら `python3 tools/build_search.py` で地番検索用の一覧（data/search.json）も作り直します
 - 地番データ：法務省 登記所備付地図データ（南大隅町 46491、2026年、G空間情報センター／AIGID変換、CC BY）
 - 国有林：国土数値情報（国有林野データ）から南大隅町分（2,097小班・約11,456ha）
 - 森林簿：各自が県のサイトから南大隅町分（根占町・佐多町）のCSVを読み込みます
