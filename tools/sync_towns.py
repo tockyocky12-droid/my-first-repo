@@ -14,4 +14,5 @@ for d,t in TOWNS.items():
     if not os.path.isdir(dst):print('skip',d,'(フォルダがありません)');continue  # かごしま版は別のリポジトリ（kagoshima-forest）
     open(os.path.join(dst,'index.html'),'w',encoding='utf-8').write(h)
     shutil.copy(os.path.join(ROOT,'app','sw.js'),os.path.join(dst,'sw.js'))
+    shutil.copytree(os.path.join(ROOT,'app','lib'),os.path.join(dst,'lib'),dirs_exist_ok=True)  # 地図の部品（Leaflet）
     print('updated',d)
