@@ -66,17 +66,19 @@ async function build(data){
   for(const it of items){if(it.s)continue;path(it.r);ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=Math.max(1.2,1.6*sc);ctx.stroke()}
   const sel=items.find(it=>it.s);
   if(sel){path(sel.r);ctx.fillStyle='rgba(220,30,40,.45)';ctx.fill('evenodd');ctx.strokeStyle='#ff2a2a';ctx.lineWidth=Math.max(2,4*sc);ctx.stroke()}
-  ctx.textAlign='center';ctx.textBaseline='middle';
+  // 番号は写真に書き込まず、いつも正面を向く札（スプライト）にする。ここでは置き場所だけ集める
+  const labels=[];const mpp=size/cv.width;                           // 写真1画素あたりのm
+  const mctx=document.createElement('canvas').getContext('2d');mctx.font='700 48px sans-serif';
   for(const it of items){
-    const pts=it.r[0].map(([lo,la])=>P(lo,la));if(!pts.length)continue;
+    const pts=it.r[0].map(([lo,la])=>P(lo,la));if(!pts.length||!it.n)continue;
     let a=0,cx=0,cy=0;for(let q=0;q<pts.length;q++){const [x1,y1]=pts[q],[x2,y2]=pts[(q+1)%pts.length],f=x1*y2-x2*y1;a+=f;cx+=(x1+x2)*f;cy+=(y1+y2)*f}
-    a/=2;if(Math.abs(a)<(it.s?1:2500*sc*sc))continue;               // 小さい筆（約2,500m²未満）は番号を省く
-    cx/=6*a;cy/=6*a;const fs=(it.s?24:15)*sc;
-    ctx.font=`700 ${fs}px "Noto Sans JP",sans-serif`;let bx0=1e9,bx1=-1e9;for(const [x] of pts){bx0=Math.min(bx0,x);bx1=Math.max(bx1,x)}
-    if(!it.s&&ctx.measureText(it.n).width>(bx1-bx0)*0.9)continue;   // 筆からはみ出す番号は省く
-    ctx.font=`700 ${fs}px "Noto Sans JP",sans-serif`;ctx.lineWidth=fs/5;ctx.strokeStyle='rgba(0,0,0,.65)';ctx.strokeText(it.n,cx,cy);
-    ctx.fillStyle=it.s?'#fff':'#7fe9ff';ctx.fillText(it.n,cx,cy);
+    a/=2;const m2=Math.abs(a)*mpp*mpp;if(!it.s&&m2<2500)continue;   // 小さい筆（約2,500m²未満）は番号を省く
+    cx/=6*a;cy/=6*a;let bx0=1e9,bx1=-1e9;for(const [x] of pts){bx0=Math.min(bx0,x);bx1=Math.max(bx1,x)}
+    const wm=13*mctx.measureText(it.n).width/56;                      // 札の幅（m）
+    if(!it.s&&wm>(bx1-bx0)*mpp*0.9)continue;                         // 筆からはみ出す番号は省く
+    labels.push({n:it.n,s:!!it.s,x:cx/cv.width*size-size/2,z:cy/cv.height*size-size/2,a:m2});
   }
+  labels.sort((p,q)=>(q.s-p.s)||(q.a-p.a));labels.length=Math.min(labels.length,700);
 
   // 地形の形を作る（格子を半分に間引いて軽くする）
   const S=G/2,geo=new THREE.PlaneGeometry(size,size,S,S);geo.rotateX(-Math.PI/2);
@@ -89,7 +91,28 @@ async function build(data){
   // 選んだ地番の位置（地形の上）
   const wx=(fx-tx0)/N*size-size/2,wz=(fy-ty0)/N*size-size/2;
   const gi=Math.max(0,Math.min(G-1,Math.round((fx-tx0)*256))),gj=Math.max(0,Math.min(G-1,Math.round((fy-ty0)*256)));
-  return {mesh,size,target:new THREE.Vector3(wx,hs[gj*G+gi]-mn,wz),span:data.span||300};
+  const hAt=(x,z)=>{const gx=Math.max(0,Math.min(G-1,Math.round((x+size/2)/size*G))),gy=Math.max(0,Math.min(G-1,Math.round((z+size/2)/size*G)));return hs[gy*G+gx]-mn};
+  return {mesh,size,target:new THREE.Vector3(wx,hs[gj*G+gi]-mn,wz),span:data.span||300,labels:makeLabels(labels,hAt)};
+}
+
+// 番号の札：全部の番号を1枚の画像にまとめ、札ごとにその一部を使う（画像の読み込みは1回だけ）
+function makeLabels(list,hAt){
+  const g=new THREE.Group();if(!list.length)return g;
+  const FS=48,PAD=8,AW=2048,c=document.createElement('canvas'),x=c.getContext('2d');
+  x.font=`700 ${FS}px sans-serif`;
+  const boxes=[];let cx=0,cy=0;const H=FS+PAD*2;
+  for(const l of list){const w=Math.ceil(x.measureText(l.n).width)+PAD*2;if(cx+w>AW){cx=0;cy+=H}if(cy+H>4096)break;boxes.push({l,x:cx,y:cy,w});cx+=w}
+  c.width=AW;c.height=Math.max(64,2**Math.ceil(Math.log2(cy+H)));
+  x.font=`700 ${FS}px sans-serif`;x.textAlign='center';x.textBaseline='middle';x.lineJoin='round';
+  for(const b of boxes){const tx=b.x+b.w/2,ty=b.y+H/2;x.lineWidth=FS/4.5;x.strokeStyle='rgba(0,0,0,.75)';x.strokeText(b.l.n,tx,ty);x.fillStyle=b.l.s?'#fff':'#7fe9ff';x.fillText(b.l.n,tx,ty)}
+  const base=new THREE.CanvasTexture(c);base.colorSpace=THREE.SRGBColorSpace;base.generateMipmaps=true;base.minFilter=THREE.LinearMipmapLinearFilter;
+  for(const b of boxes){
+    const t=base.clone();t.repeat.set(b.w/c.width,H/c.height);t.offset.set(b.x/c.width,1-(b.y+H)/c.height);
+    const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:t,transparent:true,depthTest:!b.l.s,depthWrite:false})); // 選んだ地番の番号は山に隠れないようにする
+    const hm=b.l.s?24:13;sp.scale.set(hm*b.w/H,hm,1);sp.center.set(0.5,0);
+    sp.userData.h=hAt(b.l.x,b.l.z);sp.position.set(b.l.x,sp.userData.h+5,b.l.z);if(b.l.s)sp.renderOrder=2;g.add(sp);
+  }
+  return g;
 }
 
 function start(data){
@@ -102,12 +125,16 @@ function start(data){
   addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
   let mesh=null,tb=null;
   // 高さの強調：地形の高さを何倍にするか（見ている向きと距離はそのまま）
-  const setEx=v=>{if(mesh)mesh.scale.y=v;document.querySelectorAll('#ex button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.v===v)));
+  let labels=null;
+  const setEx=v=>{if(mesh)mesh.scale.y=v;if(labels)labels.children.forEach(sp=>sp.position.y=sp.userData.h*v+5);document.querySelectorAll('#ex button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.v===v)));
     if(tb){const off=camera.position.clone().sub(controls.target);controls.target.set(tb.x,tb.y*v,tb.z);camera.position.copy(controls.target).add(off);controls.update()}};
   document.querySelectorAll('#ex button').forEach(b=>b.onclick=()=>setEx(+b.dataset.v));
-  (function loop(){requestAnimationFrame(loop);controls.update();renderer.render(scene,camera)})();
+  (function loop(){requestAnimationFrame(loop);controls.update();
+    // 遠くの番号は小さく読めず、画面が混み合うので隠す
+    if(labels){const far=Math.max(900,camera.position.distanceTo(controls.target)*1.6);for(const sp of labels.children)sp.visible=sp.renderOrder===2||sp.position.distanceTo(camera.position)<far}
+    renderer.render(scene,camera)})();
   build(data).then(r=>{
-    mesh=r.mesh;scene.add(mesh);tb=r.target.clone();
+    mesh=r.mesh;scene.add(mesh);labels=r.labels;scene.add(labels);tb=r.target.clone();
     const t=tb.clone();t.y*=1.5;controls.target.copy(t);mesh.scale.y=1.5;
     const d=Math.max(550,Math.min(1800,r.span*4));camera.position.set(t.x-d*0.25,t.y+d*0.62,t.z+d*0.85);controls.update();
     setEx(1.5);msg('');$('info').textContent=`読み込み 約${(bytes/1048576).toFixed(1)}MB ・ 範囲 約${(r.size/1000).toFixed(1)}km四方`;
