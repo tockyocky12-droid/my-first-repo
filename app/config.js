@@ -13,5 +13,6 @@ window.CFG={
   csvHint:'錦江町分の森林簿CSV（田代町・大根占町の2ファイル）',
   csvUrl:'https://www.pref.kagoshima.jp/ad12/shinrin-open.html', // 県の森林資源情報オープンデータのページ（初回に案内する）
   disclaimer:'個人が作成した非公式のアプリです。県・町の公式のものではありません。地番・森林簿の内容は参考で、境界や権利を確定するものではありません。',
-  kkOffice:'大隅森林管理署'
+  kkOffice:'大隅森林管理署',
+  view3d:true                  // 地番カードに「3D」ボタンを出す（試作）
 };
