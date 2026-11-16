@@ -12,7 +12,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#cfe3ef;font-family:"Z
 #ex span{padding:0 4px}
 #ex button{font:inherit;font-weight:700;border:0;border-radius:8px;padding:7px 9px;background:#e6efe8;color:#234}
 #ex button[aria-pressed=true]{background:#2c8a50;color:#fff}
-#info{position:fixed;right:12px;bottom:calc(66px + env(safe-area-inset-bottom,0px));font-size:11px;color:#234;background:rgba(255,255,255,.85);border-radius:8px;padding:3px 7px}
+#info{position:fixed;right:12px;max-width:70vw;text-align:right;bottom:calc(66px + env(safe-area-inset-bottom,0px));font-size:11px;color:#234;background:rgba(255,255,255,.85);border-radius:8px;padding:3px 7px}
 #msg{position:fixed;left:50%;top:45%;transform:translate(-50%,-50%);background:rgba(16,32,24,.85);color:#fff;padding:12px 16px;border-radius:12px;font-size:14px;max-width:80vw;text-align:center}
 #attr{position:fixed;left:12px;top:calc(64px + env(safe-area-inset-top,0px));font-size:9.5px;color:#234;background:rgba(255,255,255,.75);border-radius:6px;padding:1px 6px}
 #help{position:fixed;left:12px;top:calc(46px + env(safe-area-inset-top,0px));font-size:11px;color:#fff;text-shadow:0 1px 3px #000;pointer-events:none}
@@ -25,5 +25,5 @@ html,body{margin:0;height:100%;overflow:hidden;background:#cfe3ef;font-family:"Z
 <div id="info"></div>
 <div id="attr">地理院タイル（写真・標高）・地番：法務省 登記所備付地図データ</div>
 <div id="msg">準備しています…</div>
-<script src="./lib/viewer3d/viewer3d.js?v=20261117b"></script>
+<script src="./lib/viewer3d/viewer3d.js?v=20261117c"></script>
 </body></html>

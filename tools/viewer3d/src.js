@@ -137,7 +137,7 @@ function start(data){
     mesh=r.mesh;scene.add(mesh);labels=r.labels;scene.add(labels);tb=r.target.clone();
     const t=tb.clone();t.y*=1.5;controls.target.copy(t);mesh.scale.y=1.5;
     const d=Math.max(550,Math.min(1800,r.span*4));camera.position.set(t.x-d*0.25,t.y+d*0.62,t.z+d*0.85);controls.update();
-    setEx(1.5);msg('');$('info').textContent=`読み込み 約${(bytes/1048576).toFixed(1)}MB ・ 範囲 約${(r.size/1000).toFixed(1)}km四方`;
+    setEx(1.5);msg('');$('info').textContent=`データ 約${(bytes/1048576).toFixed(1)}MB（同じ場所の2回目からは端末の保存分）・ 約${(r.size/1000).toFixed(1)}km四方`;
   }).catch(e=>{console.error(e);msg('地形データを読み込めませんでした。通信状態を確かめて、もう一度開いてください')});
 }
 
