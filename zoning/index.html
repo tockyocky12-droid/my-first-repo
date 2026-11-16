@@ -10,7 +10,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="錦江町森林ゾーニング">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="../app/lib/leaflet-1.9.4/leaflet.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700&family=BIZ+UDGothic:wght@400;700&display=swap">
 <style>
@@ -60,6 +60,16 @@ table.sum td{padding:5px 4px;border-top:1px solid var(--line)}
 table.sum td.n{text-align:right;white-space:nowrap}
 table.sum tr.tot td{font-weight:700}
 .kkbtn[aria-pressed="true"]{border-color:#0e7490;color:#0e7490;font-weight:700}
+.chbtn[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);font-weight:700}
+/* 地番の番号（拡大したときだけ、画面に映っている筆に出す） */
+.chlbl{background:none!important;border:0!important}
+.chlbl span{display:block;transform:translate(-50%,-50%);font:700 11px/1 "BIZ UDGothic","Hiragino Sans",sans-serif;color:#1f3d2b;white-space:nowrap;pointer-events:none;
+  text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff,0 0 3px #fff}
+.ph .chlbl span{color:#fff;text-shadow:0 0 2px #000,0 0 2px #000,0 0 3px #000}
+/* 3Dで見る */
+.b3d{border:1px solid var(--accent);background:transparent;color:var(--accent);font:inherit;font-size:13px;font-weight:700;border-radius:8px;padding:3px 10px;cursor:pointer;flex:none;align-self:center}
+#v3d{position:fixed;inset:0;z-index:3000;background:#cfe3ef}#v3d iframe{border:0;width:100%;height:100%;display:block}
+#v3d-x{position:absolute;right:calc(10px + env(safe-area-inset-right,0px));top:calc(8px + env(safe-area-inset-top,0px));width:40px;height:40px;border-radius:50%;border:0;background:rgba(255,255,255,.92);color:#234;font-size:22px;box-shadow:0 2px 8px rgba(0,0,0,.3);cursor:pointer}
 .kksec{margin-top:14px;border-top:2px solid #0e7490;padding-top:8px}
 .kksec h3{font-size:14px;margin:0;color:#0e7490}
 .kkpop{font-family:var(--f-data);font-size:13px;line-height:1.55;min-width:200px;color:#17262b}
@@ -144,9 +154,11 @@ table.sb td.n{text-align:right}
   </div>
   <span class="fwrap" id="fload-wrap"><span class="fbtn" id="fload">森林簿CSVを読み込む</span><input id="ffile" class="fover" type="file" multiple accept=".csv,text/csv,text/comma-separated-values,application/csv,application/vnd.ms-excel,text/plain" aria-label="森林簿CSVを選ぶ"></span>
   <button id="kk" class="hbtn kkbtn" type="button" aria-pressed="false">国有林</button>
+  <button id="chb" class="hbtn chbtn" type="button" aria-pressed="true">地番</button>
 </div>
 <div id="maparea"><div id="map"></div><div id="zhint" class="zhint" hidden>地図を拡大すると、民有林（地番）と国有林の境界が表示されます</div></div>
 <section id="panel" aria-live="polite"></section>
+<div id="v3d" hidden><iframe id="v3d-f" title="3Dで見る"></iframe><button id="v3d-x" type="button" aria-label="3D表示を閉じる">×</button></div>
 <div id="toast" hidden></div>
 
 <div id="cond" hidden>
@@ -164,7 +176,7 @@ table.sb td.n{text-align:right}
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="../app/lib/leaflet-1.9.4/leaflet.js"></script>
 <script>
 // ===== ゾーンの定義 =====
 const ZONES=[
@@ -291,11 +303,11 @@ const savedView=(()=>{try{const v=JSON.parse(localStorage.getItem('zoning:view')
 const map=L.map('map',{zoomControl:true,preferCanvas:true}).setView(savedView?[savedView.lat,savedView.lng]:[31.215,130.83],savedView?savedView.z:12);
 let svT;map.on('moveend',()=>{clearTimeout(svT);svT=setTimeout(()=>{try{const c=map.getCenter();localStorage.setItem('zoning:view',JSON.stringify({lat:+c.lat.toFixed(6),lng:+c.lng.toFixed(6),z:map.getZoom()}))}catch(e){}},500)});
 const gsiAttr='<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地理院タイル</a>';
-const std=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png',{maxZoom:18,attribution:gsiAttr,updateWhenZooming:false,keepBuffer:1});
-const photo=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',{maxZoom:18,attribution:gsiAttr,updateWhenZooming:false,keepBuffer:1});
+const std=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png',{maxZoom:18,crossOrigin:'anonymous',attribution:gsiAttr,updateWhenZooming:false,keepBuffer:1});
+const photo=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',{maxZoom:18,crossOrigin:'anonymous',attribution:gsiAttr,updateWhenZooming:false,keepBuffer:1});
 std.addTo(map);
 map.attributionControl.addAttribution('地番：法務省 登記所備付地図データ（G空間情報センター、AIGID変換）／森林簿：鹿児島県');
-function setBase(p){(p?std:photo).remove();(p?photo:std).addTo(map);
+function setBase(p){(p?std:photo).remove();(p?photo:std).addTo(map);map.getContainer().classList.toggle('ph',p);
   document.getElementById('bm-std').setAttribute('aria-pressed',!p);document.getElementById('bm-photo').setAttribute('aria-pressed',p);restyle()}
 document.getElementById('bm-std').onclick=()=>setBase(false);
 document.getElementById('bm-photo').onclick=()=>setBase(true);
@@ -409,7 +421,7 @@ function openKK(l){
   panel.replaceChildren();panel.scrollTop=0;
   const top=el('div','ptop');const h2=el('h2',null,kkLin(p.n));h2.style.fontSize='20px';h2.style.fontFamily='var(--f-data)';
   const x=el('button','xbtn','×');x.type='button';x.setAttribute('aria-label','集計に戻る');x.onclick=showSummary;
-  top.append(h2,el('span','sub',['国有林',p.kn,p.tan&&`（${p.tan}担当区）`].filter(Boolean).join(' ')),x);panel.append(top);
+  top.append(h2,el('span','sub',['国有林',p.kn,p.tan&&`（${p.tan}担当区）`].filter(Boolean).join(' ')),b3d(l),x);panel.append(top);
   const row=el('div');row.style.marginTop='8px';const chip=el('span','chip','国有林');chip.style.background='#0e7490';row.append(chip);
   const k=kkKt(p.kt);if(k){const c2=el('span','chip',p.kt);c2.style.background=k.c;c2.style.marginLeft='6px';row.append(c2)}
   panel.append(row);
@@ -448,6 +460,48 @@ function kkSummary(){
   sec.append(tb,el('p','note','国有林の機能類型（国有林野の管理経営計画による区分）です。色分けの「現行区分」では、この色で国有林を塗り分けます。ゾーン案の集計（上の表）は民有林の森林簿だけで、国有林は含みません。'));
   return sec}
 parcels=L.geoJSON(null,{style:styleFor,onEachFeature:(f,l)=>l.on('click',()=>openParcel(l))}).addTo(map);
+// 地番の番号を地図に出す：拡大率17以上で、画面に映っている筆だけ。小さい筆・重なる所は省く
+const CH_Z=17,CH_MAX=350;let chOn=true;try{chOn=localStorage.getItem('zoning:chiban')!=='off'}catch(e){}
+const chLayer=L.layerGroup().addTo(map);let chT;
+function chRefresh(){clearTimeout(chT);chT=setTimeout(chDraw,150)}
+function chDraw(){
+  chLayer.clearLayers();if(!chOn||map.getZoom()<CH_Z||!map.hasLayer(parcels))return;
+  const vb=map.getBounds().pad(0.1),cand=[];
+  parcels.eachLayer(l=>{
+    const b=l._chB||(l._chB=l.getBounds());if(!vb.intersects(b))return;
+    const n=l.feature.properties['地番'];if(!n)return;
+    const a=map.latLngToContainerPoint(b.getNorthWest()),c=map.latLngToContainerPoint(b.getSouthEast());
+    const w=Math.abs(c.x-a.x),h=Math.abs(c.y-a.y);const tw=String(n).length*6.6+6;if(w<tw||h<14)return;   // 番号が入らない小さい筆は省く
+    cand.push({l,n:String(n),s:w*h,tw})});
+  cand.sort((x,y)=>y.s-x.s);const used=[];let k=0;
+  for(const c of cand){if(k>=CH_MAX)break;
+    let ll;try{ll=c.l.getCenter()}catch(_){continue}
+    const pt=map.latLngToContainerPoint(ll),r={x0:pt.x-c.tw/2,x1:pt.x+c.tw/2,y0:pt.y-8,y1:pt.y+8};
+    if(used.some(u=>r.x0<u.x1&&r.x1>u.x0&&r.y0<u.y1&&r.y1>u.y0))continue;used.push(r);k++;
+    L.marker(ll,{icon:L.divIcon({className:'chlbl',html:'<span></span>',iconSize:[0,0]}),interactive:false,keyboard:false}).addTo(chLayer).getElement().firstChild.textContent=c.n}
+}
+map.on('zoomend moveend',chRefresh);parcels.on('layeradd',chRefresh);
+function setCh(on){chOn=on;document.getElementById('chb').setAttribute('aria-pressed',on);try{localStorage.setItem('zoning:chiban',on?'on':'off')}catch(e){}chRefresh()}
+document.getElementById('chb').onclick=()=>{setCh(!chOn);toast(chOn?(map.getZoom()<CH_Z?'さらに拡大すると地番の番号が出ます':'地番の番号を表示します'):'地番の番号を隠しました')};
+setCh(chOn);
+// 3Dで見る：選んだ地番（国有林の小班）の周り約2km四方の形を、森林管理システムの3D画面に渡す
+let v3dData=null;
+function b3d(l){const b=el('button','b3d','3D');b.type='button';b.setAttribute('aria-label','3Dで見る');b.onclick=()=>open3d(l);return b}
+function open3d(l){if(!l)return;
+  const b=l.getBounds(),c=b.getCenter(),area=L.latLngBounds([c.lat-0.011,c.lng-0.013],[c.lat+0.011,c.lng+0.013]);
+  const rings=g=>g.type==='Polygon'?g.coordinates:g.type==='MultiPolygon'?g.coordinates.flat():[];
+  const items=[];parcels.eachLayer(x=>{const p=x.feature&&x.feature.properties;if(!p)return;try{if(!area.intersects(x.getBounds()))return}catch(_){return}
+    items.push({r:rings(x.feature.geometry),n:String(p['地番']||''),s:x===l})});
+  const isKK=!!(l.feature.properties&&l.feature.properties.__kk);
+  if(kkLayer&&(map.hasLayer(kkLayer)||isKK))kkLayer.eachLayer(x=>{const p=x.feature&&x.feature.properties;if(!p)return;try{if(!area.intersects(x.getBounds()))return}catch(_){return}
+    const a=String(p.n||'').split('_');items.push({r:rings(x.feature.geometry),n:a.length===3?`${a[0]}${a[2]?'-'+a[2]:''}`:String(p.n||''),s:x===l,k:true})});
+  const p=l.feature.properties;
+  v3dData={type:'v3d',center:[c.lat,c.lng],span:map.distance(b.getSouthWest(),b.getNorthEast()),items,
+    title:isKK?`国有林 ${kkLin(p.n)}`:[`${p['地番']}番`,p['大字名']].filter(Boolean).join('　')};
+  document.getElementById('v3d').hidden=false;document.getElementById('v3d-f').src='../app/3d.html';
+}
+addEventListener('message',e=>{if(e.origin===location.origin&&e.data&&e.data.type==='v3d-ready'&&v3dData)e.source.postMessage(v3dData,location.origin)});
+document.getElementById('v3d-x').onclick=()=>{document.getElementById('v3d').hidden=true;document.getElementById('v3d-f').src='about:blank';v3dData=null};
 function bb(b){return L.latLngBounds([b[1],b[0]],[b[3],b[2]])}
 function loadDistrict(d){if(loading[d.file])return loading[d.file];
   return loading[d.file]=fetch('../app/data/'+d.file+(d.v?'?v='+d.v:'')).then(r=>{if(!r.ok)throw 0;return r.json()})
@@ -566,7 +620,7 @@ function openParcel(l){
   const top=el('div','ptop');const h=el('h2',null,`${p['地番']} 番`);h.style.fontSize='20px';h.style.fontFamily='var(--f-data)';
   const x=el('button','xbtn','×');x.type='button';x.setAttribute('aria-label','集計に戻る');x.onclick=showSummary;
   const az=info?[...new Set(info.recs.map(r=>r.az).filter(Boolean))].join('・'):'';
-  top.append(h,el('span','sub',[p['大字名'],az].filter(Boolean).join(' ')),x);panel.append(top);
+  top.append(h,el('span','sub',[p['大字名'],az].filter(Boolean).join(' ')),b3d(l),x);panel.append(top);
   if(!rowsAll.length){panel.append(el('p','note','森林簿が読み込まれていません。'));return}
   if(!info){panel.append(el('p','note','この地番は森林簿に載っていません（森林以外の土地か、地番の表し方が違う可能性があります）。'));return}
   const z=ZMAP[info.zone];const chip=el('span','chip'+(info.man?' man':''),z.n);chip.style.background=z.c;
@@ -627,7 +681,7 @@ document.getElementById('cond-apply').onclick=()=>{readCond();try{localStorage.s
 document.getElementById('cond-reset').onclick=()=>{opts=Object.assign({},DEF);fillCond()};
 
 // ===== CSV書き出し（小班ごとの判定結果） =====
-const ZVER='版 2026-11-01z11';
+const ZVER='版 2026-11-17z12';
 function exportBtn(){const w=el('div','expw');const b=el('button','pbtn ghost','判定結果をCSVで書き出す');b.type='button';b.onclick=exportCSV;
   w.append(b,el('span','note','小班ごとの判定・傾斜などをExcelで開ける形で保存します'),el('span','zver',ZVER));return w}
 function exportCSV(){

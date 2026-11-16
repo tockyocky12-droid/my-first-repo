@@ -63,7 +63,9 @@ async function build(data){
   const P=(lon,lat)=>[(lon2x(lon,PHOTO_Z)-px0)*256*sc,(lat2y(lat,PHOTO_Z)-py0)*256*sc];
   const path=rings=>{ctx.beginPath();for(const r of rings){r.forEach(([lo,la],q)=>{const [x,y]=P(lo,la);q?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.closePath()}};
   ctx.lineJoin='round';
-  for(const it of items){if(it.s)continue;path(it.r);ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=Math.max(1.2,1.6*sc);ctx.stroke()}
+  // 国有林の小班は薄い緑で塗って水色の線（地番は白い線）
+  for(const it of items){if(it.s||!it.k)continue;path(it.r);ctx.fillStyle='rgba(60,170,120,.18)';ctx.fill('evenodd');ctx.strokeStyle='rgba(125,211,252,.95)';ctx.lineWidth=Math.max(1.5,2.2*sc);ctx.stroke()}
+  for(const it of items){if(it.s||it.k)continue;path(it.r);ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=Math.max(1.2,1.6*sc);ctx.stroke()}
   const sel=items.find(it=>it.s);
   if(sel){path(sel.r);ctx.fillStyle='rgba(220,30,40,.45)';ctx.fill('evenodd');ctx.strokeStyle='#ff2a2a';ctx.lineWidth=Math.max(2,4*sc);ctx.stroke()}
   // 番号は写真に書き込まず、いつも正面を向く札（スプライト）にする。ここでは置き場所だけ集める
@@ -76,7 +78,7 @@ async function build(data){
     cx/=6*a;cy/=6*a;let bx0=1e9,bx1=-1e9;for(const [x] of pts){bx0=Math.min(bx0,x);bx1=Math.max(bx1,x)}
     const wm=13*mctx.measureText(it.n).width/56;                      // 札の幅（m）
     if(!it.s&&wm>(bx1-bx0)*mpp*0.9)continue;                         // 筆からはみ出す番号は省く
-    labels.push({n:it.n,s:!!it.s,x:cx/cv.width*size-size/2,z:cy/cv.height*size-size/2,a:m2});
+    labels.push({n:it.n,s:!!it.s,k:!!it.k,x:cx/cv.width*size-size/2,z:cy/cv.height*size-size/2,a:m2});
   }
   labels.sort((p,q)=>(q.s-p.s)||(q.a-p.a));labels.length=Math.min(labels.length,700);
 
@@ -104,7 +106,7 @@ function makeLabels(list,hAt){
   for(const l of list){const w=Math.ceil(x.measureText(l.n).width)+PAD*2;if(cx+w>AW){cx=0;cy+=H}if(cy+H>4096)break;boxes.push({l,x:cx,y:cy,w});cx+=w}
   c.width=AW;c.height=Math.max(64,2**Math.ceil(Math.log2(cy+H)));
   x.font=`700 ${FS}px sans-serif`;x.textAlign='center';x.textBaseline='middle';x.lineJoin='round';
-  for(const b of boxes){const tx=b.x+b.w/2,ty=b.y+H/2;x.lineWidth=FS/4.5;x.strokeStyle='rgba(0,0,0,.75)';x.strokeText(b.l.n,tx,ty);x.fillStyle=b.l.s?'#fff':'#7fe9ff';x.fillText(b.l.n,tx,ty)}
+  for(const b of boxes){const tx=b.x+b.w/2,ty=b.y+H/2;x.lineWidth=FS/4.5;x.strokeStyle='rgba(0,0,0,.75)';x.strokeText(b.l.n,tx,ty);x.fillStyle=b.l.s?'#fff':b.l.k?'#bef264':'#7fe9ff';x.fillText(b.l.n,tx,ty)}
   const base=new THREE.CanvasTexture(c);base.colorSpace=THREE.SRGBColorSpace;base.generateMipmaps=true;base.minFilter=THREE.LinearMipmapLinearFilter;
   for(const b of boxes){
     const t=base.clone();t.repeat.set(b.w/c.width,H/c.height);t.offset.set(b.x/c.width,1-(b.y+H)/c.height);
