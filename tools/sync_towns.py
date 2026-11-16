@@ -17,3 +17,7 @@ for d,t in TOWNS.items():
     shutil.copytree(os.path.join(ROOT,'app','lib'),os.path.join(dst,'lib'),dirs_exist_ok=True,ignore=None if td else shutil.ignore_patterns('viewer3d'))  # 地図の部品（Leaflet など）
     if td:shutil.copy(os.path.join(ROOT,'app','3d.html'),os.path.join(dst,'3d.html'))
     print('updated',d)
+# ゾーニングの3D画面：ゾーニングのフォルダに置くと、ゾーニングのサービスワーカーが標高・写真を保存できる（部品は app/lib を共用）
+z=open(os.path.join(ROOT,'app','3d.html'),encoding='utf-8').read().replace('src="./lib/','src="../app/lib/')
+assert '../app/lib/viewer3d/' in z
+open(os.path.join(ROOT,'zoning','3d.html'),'w',encoding='utf-8').write(z);print('updated zoning/3d.html')

@@ -1,5 +1,5 @@
 // 錦江町森林ゾーニング：オフラインでも開けるようにするための仕組み（地番・国有林のデータは森林管理システムのものを使う）
-const VER='z12';
+const VER='z13';
 // この仕組みが置かれたフォルダ（例：/my-first-repo/app/）。町ごとのフォルダで同じファイルを使う
 const BASE=new URL(self.registration.scope).pathname;
 const PFX='zoning';
@@ -68,7 +68,6 @@ self.addEventListener('fetch',e=>{
   // 地図の画像は保存分を先に使う（画面から直接読むもの＝保存処理や標高の計算は、そのまま通す）
   if(u.hostname==='cyberjapandata.gsi.go.jp'){if(req.destination==='image'||/^\/xyz\/(dem|seamlessphoto)/.test(u.pathname))e.respondWith(cacheFirst(req,TILES,TILE_MAX));return}
   if(u.origin===location.origin&&u.pathname.startsWith(DBASE+'lib/')){e.respondWith(cacheFirst(req,SHELL));return} // 地図の部品・3D表示の部品（版番号つき）
-  if(u.origin===location.origin&&u.pathname===DBASE+'3d.html'){e.respondWith(networkFirst(req,SHELL,true));return}
   if(u.hostname==='cdnjs.cloudflare.com'||u.hostname==='fonts.googleapis.com'||u.hostname==='fonts.gstatic.com'){e.respondWith(cacheFirst(req,SHELL));return}
   if(u.origin===location.origin&&u.pathname.startsWith(BASE)){e.respondWith(networkFirst(req,SHELL))}
 });
