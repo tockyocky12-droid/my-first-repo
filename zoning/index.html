@@ -48,7 +48,11 @@ header h1 small{font-weight:400;color:var(--muted);font-size:12px;margin-left:4p
 #maparea{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
 #map{flex:1;min-height:0}
 #toast{position:fixed;left:50%;transform:translateX(-50%);top:130px;z-index:3000;background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;max-width:90%}
-/* 下のパネル（集計／地番カード） */
+/* 下のパネル（集計／地番カード）。スマホでは上のつまみで、見出し1行だけにたためる */
+#pfold{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:26px;border:0;border-top:1px solid var(--line);background:var(--panel);color:var(--muted);font:inherit;font-size:12px;cursor:pointer;z-index:1000;flex:none}
+#pfold i{width:36px;height:4px;border-radius:2px;background:var(--line)}
+body.fold #panel>:not(.ptop):not(.empty){display:none}
+body.fold #panel{border-top:0;padding-top:2px}
 #panel{background:var(--panel);border-top:1px solid var(--line);z-index:1000;max-height:46%;overflow:auto;
   padding-block:10px calc(10px + env(safe-area-inset-bottom,0px));padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px))}
 .ptop{display:flex;align-items:baseline;gap:4px 8px;flex-wrap:wrap}
@@ -84,7 +88,6 @@ tr.off .ftog .ck{background:transparent;border-color:var(--muted)}
 tr.off td{opacity:.45}
 tr.off td:first-child,tr.off td:last-child{opacity:1}
 tr.off .ftog{color:var(--muted)}
-.only{font:inherit;font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer}
 .bcell{width:22%}
 .fnote{font-size:12px;color:var(--muted);margin:6px 0 0;line-height:1.6}
 .allbtn{font:inherit;font-size:12px;padding:2px 10px;border-radius:999px;border:1px solid var(--accent);background:transparent;color:var(--accent);cursor:pointer}
@@ -127,6 +130,8 @@ table.sb td.n{text-align:right}
 @media (min-width:900px){
   body{display:grid;grid-template-columns:minmax(0,1fr) 440px;grid-template-rows:auto auto minmax(0,1fr);grid-template-areas:"h h" "b b" "m p"}
   header{grid-area:h} #bar{grid-area:b} #maparea{grid-area:m}
+  #pfold{display:none}
+  body.fold #panel>:not(.ptop):not(.empty){display:revert}
   #panel{grid-area:p;max-height:none;border-top:0;border-left:1px solid var(--line);padding:16px 18px}
   table.sum{font-size:14px}
   .ptop h2{font-size:17px}
@@ -157,6 +162,7 @@ table.sb td.n{text-align:right}
   <button id="chb" class="hbtn chbtn" type="button" aria-pressed="true">地番</button>
 </div>
 <div id="maparea"><div id="map"></div><div id="zhint" class="zhint" hidden>地図を拡大すると、民有林（地番）と国有林の境界が表示されます</div></div>
+<button id="pfold" type="button" aria-expanded="true" aria-controls="panel"><i></i><span>たたむ</span></button>
 <section id="panel" aria-live="polite"></section>
 <div id="v3d" hidden><iframe id="v3d-f" title="3Dで見る"></iframe><button id="v3d-x" type="button" aria-label="3D表示を閉じる">×</button></div>
 <div id="toast" hidden></div>
@@ -522,6 +528,11 @@ document.getElementById('v-slope').onclick=()=>setView('slope');
 document.getElementById('v-own').onclick=()=>setView('own');
 document.getElementById('v-plan').onclick=()=>setView('plan');
 
+// 下のパネルをたたむ（スマホ）。たたんでも見出し（地番・3Dボタン）は残す
+let fold=false;try{fold=localStorage.getItem('zoning:fold')==='on'}catch(e){}
+function setFold(on){fold=on;document.body.classList.toggle('fold',on);const b=document.getElementById('pfold');b.setAttribute('aria-expanded',!on);b.lastChild.textContent=on?'集計・くわしい情報を開く':'たたむ';
+  try{localStorage.setItem('zoning:fold',on?'on':'off')}catch(e){}setTimeout(()=>map.invalidateSize(),50)}
+document.getElementById('pfold').onclick=()=>setFold(!fold);setFold(fold);
 // ===== 集計（小班の面積で計算。地図と結び付かない小班も含む） =====
 const panel=document.getElementById('panel');
 function el(tag,cls,txt){const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e}
@@ -539,15 +550,13 @@ function filterRow(kind,key,color,name,cells,list){
   const t1=el('td');const btn=el('button','ftog');btn.type='button';btn.setAttribute('aria-pressed',on);btn.title=on?'地図から外す':'地図に表示する';
   const ck=el('span','ck',on?'✓':'');const s=el('span','sw');s.style.background=color;btn.append(ck,s,name);
   btn.onclick=()=>{on?hide[kind].add(key):hide[kind].delete(key);saveHide();restyle();showSummary()};t1.append(btn);
-  const only=el('button','only','だけ');only.type='button';only.title=name+'だけを表示';
-  only.onclick=()=>{hide[kind]=new Set(list.filter(k=>k!==key));saveHide();restyle();showSummary();toast(`${name}だけを表示しています`)};
-  const t9=el('td','n');t9.append(only);
-  tr.append(t1,...cells,t9);return tr;
+  tr.append(t1,...cells);return tr;
 }
 function filterNote(kind,names){
   const shown=names.filter(([k])=>!hide[kind].has(k));
   const p=el('p','fnote');
-  if(shown.length===names.length){p.textContent='行をタップすると、その項目を地図から外せます。「だけ」でその項目だけを表示します。';return p}
+  if(shown.length===names.length){p.append('行をタップすると、その項目を地図から外せます。一つだけ見るときは「すべて外す」のあと、見たい行をタップ。　');
+    const none=el('button','allbtn','すべて外す');none.type='button';none.onclick=()=>{hide[kind]=new Set(names.map(([k])=>k));saveHide();restyle();showSummary()};p.append(none);return p}
   p.append(`地図に表示中：${shown.length?shown.map(([,n])=>n).join('・'):'なし'}　`);
   const all=el('button','allbtn','すべて表示');all.type='button';all.onclick=()=>{hide[kind]=new Set();saveHide();restyle();showSummary()};p.append(all);return p;
 }
@@ -565,7 +574,7 @@ function showSummary(){
     panel.append(filterNote('own',OWNS.map(o=>[o.k,o.n])));
     const tb=el('table','sum');
     OWNS.forEach(o=>{const a=by[o.k]||0;tb.append(filterRow('own',o.k,o.c,o.n,[el('td','n',fmtHa(a)),el('td','n',(a/tot*100).toFixed(1)+'%')],OWNS.map(x=>x.k)))});
-    const tr=el('tr','tot');tr.append(el('td',null,'合計'),el('td','n',fmtHa(tot)),el('td','n','100%'),el('td'));tb.append(tr);
+    const tr=el('tr','tot');tr.append(el('td',null,'合計'),el('td','n',fmtHa(tot)),el('td','n','100%'));tb.append(tr);
     panel.append(tb,el('p','note','面積は小班ごとの合計、地図の色は地番の中で面積が一番大きい小班の所有形態です。「国有林」ボタンで国有林を表示すると、灰色で示します。'));
     panel.append(exportBtn());
     panel.append(el('p','credit','この成果品は、鹿児島県森林資源情報データ（ダウンロード）から作成したものである'));return}
@@ -579,7 +588,7 @@ function showSummary(){
     panel.append(filterNote('slope',SLOPE_CLS.map(c=>[c.k,c.n])));
     const tb=el('table','sum');
     SLOPE_CLS.forEach(c=>{const a=by[c.k]||0;tb.append(filterRow('slope',c.k,c.c,c.n,[el('td','n',fmtHa(a)),el('td','n',(a/tot*100).toFixed(1)+'%')],SLOPE_CLS.map(x=>x.k)))});
-    if(none){const tr=el('tr');tr.append(el('td',null,'傾斜なし（地番と結び付かない小班）'),el('td','n',fmtHa(none)),el('td','n',(none/tot*100).toFixed(1)+'%'),el('td'));tb.append(tr)}
+    if(none){const tr=el('tr');tr.append(el('td',null,'傾斜なし（地番と結び付かない小班）'),el('td','n',fmtHa(none)),el('td','n',(none/tot*100).toFixed(1)+'%'));tb.append(tr)}
     panel.append(tb,el('p','note','森林簿の面積（ha）を、その小班の地番の平均傾斜で分けて集計しています。「条件」で、急な森林を木材生産林から外す判定に使えます。'));
     const rb=el('button','pbtn ghost','傾斜を計算し直す');rb.type='button';rb.style.marginTop='8px';rb.onclick=runSlope;panel.append(rb);
     panel.append(el('p','credit','標高：国土地理院 地理院タイル（標高タイル）を加工して作成'));
@@ -594,7 +603,7 @@ function showSummary(){
       const t2=el('td','n',fmtHa(a));const t3=el('td','n',total?(a/total*100).toFixed(1)+'%':'—');
       const t4=el('td','bcell');const bc=el('div','barc');const bi=el('i');bi.style.width=(total?a/total*100:0)+'%';bi.style.background=z.c;bc.append(bi);t4.append(bc);
       tb.append(filterRow('zone',z.k,z.c,z.n,[t2,t3,t4],ZONES.map(x=>x.k)))});
-    const tr=el('tr','tot');tr.append(el('td',null,'合計'),el('td','n',fmtHa(total)),el('td','n','100%'),el('td'),el('td'));tb.append(tr);panel.append(tb);
+    const tr=el('tr','tot');tr.append(el('td',null,'合計'),el('td','n',fmtHa(total)),el('td','n','100%'),el('td'));tb.append(tr);panel.append(tb);
     panel.append(el('p','note',`地番をタップすると、判定の理由と小班の内訳が見られます。${manual?`手直しで変わった面積：${fmtHa(manual)} ha。`:''}地図の色は地番単位、集計は小班単位です。`));
   }else{
     const pa={};let total=0,none=0;rowsAll.forEach(r=>{const p=planOf(r.plan);total+=r.a;if(p)pa[p.m]=(pa[p.m]||0)+r.a;else none+=r.a});
@@ -681,7 +690,7 @@ document.getElementById('cond-apply').onclick=()=>{readCond();try{localStorage.s
 document.getElementById('cond-reset').onclick=()=>{opts=Object.assign({},DEF);fillCond()};
 
 // ===== CSV書き出し（小班ごとの判定結果） =====
-const ZVER='版 2026-11-17z13';
+const ZVER='版 2026-11-17z14';
 function exportBtn(){const w=el('div','expw');const b=el('button','pbtn ghost','判定結果をCSVで書き出す');b.type='button';b.onclick=exportCSV;
   w.append(b,el('span','note','小班ごとの判定・傾斜などをExcelで開ける形で保存します'),el('span','zver',ZVER));return w}
 function exportCSV(){
