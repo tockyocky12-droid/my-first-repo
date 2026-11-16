@@ -2,9 +2,8 @@
 # 町ごとに違うのは config.js・manifest.webmanifest・data/・kokuyu/ と、index.html のタイトル2か所だけ。
 import shutil, re, sys, os
 ROOT=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TOWNS={'minamiosumi':{'title':'南大隅町森林ナビ','short':'南大隅町森林ナビ'},
-       'kimotsuki':{'title':'肝付町森林ナビ','short':'肝付町森林ナビ'},
-       '../kagoshima-forest':{'title':'かごしま森林ナビ 大隅','short':'森林ナビ 大隅','3d':True}}
+# 南大隅町版・肝付町版は2026-11-17に大隅版へ統合して削除（フォルダには移転の案内だけ残す）
+TOWNS={'../kagoshima-forest':{'title':'かごしま森林ナビ 大隅','short':'森林ナビ 大隅','3d':True}}
 for d,t in TOWNS.items():
     h=open(os.path.join(ROOT,'app','index.html'),encoding='utf-8').read()
     h=h.replace('<title>錦江町森林ナビ</title>',f"<title>{t['title']}</title>",1)

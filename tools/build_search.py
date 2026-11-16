@@ -3,7 +3,7 @@
 # 地番データ（data/*.geojson）を入れ替えたら、もう一度実行する。
 import json, os
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-for folder in ['app', 'minamiosumi', 'kimotsuki']:
+for folder in ['app']:  # 南大隅町版・肝付町版は大隅版に統合（2026-11-17）
     d = os.path.join(ROOT, folder, 'data'); idx = json.load(open(os.path.join(d, 'index.json'), encoding='utf-8'))
     files, rows = [], []
     for i, dd in enumerate(idx):
